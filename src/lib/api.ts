@@ -154,10 +154,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ daysToAdd }),
     }),
-  registerPayment: (id: string, daysToAdd?: number) =>
+  registerPayment: (id: string, daysToAdd?: number, paymentInfo?: { amount?: number; method?: string; notes?: string }) =>
     request(`/master/clients/${id}/payment`, {
       method: 'POST',
-      body: JSON.stringify({ daysToAdd }),
+      body: JSON.stringify({ daysToAdd, ...paymentInfo }),
     }),
   deleteClient: (id: string) =>
     request(`/master/clients/${id}`, { method: 'DELETE' }),

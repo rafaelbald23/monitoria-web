@@ -29,9 +29,17 @@ router.get('/dashboard', authMiddleware, requireMaster, async (req: AuthRequest,
     const expiringClients = await prisma.user.count({
       where: {
         isMaster: false,
-        subscriptionEnd: { lte: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) }, // próximos 7 dias
+        subscriptionStatus: 'active',
+        subscriptionEnd: { lte: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) },
       },
     });
+
+    // Calcular receita mensal (soma dos valores mensais dos clientes ativos)
+    const activeClientsWithValue = await prisma.user.findMany({
+      where: { isMaster: false, subscriptionStatus: 'active', monthlyValue: { not: null } },
+      select: { monthlyValue: true },
+    });
+    const monthlyRevenue = activeClientsWithValue.reduce((sum, c) => sum + (c.monthlyValue || 0), 0);
 
     const recentLogins = await prisma.user.findMany({
       where: { isMaster: false, lastLoginAt: { not: null } },
@@ -45,6 +53,7 @@ router.get('/dashboard', authMiddleware, requireMaster, async (req: AuthRequest,
       activeClients,
       suspendedClients,
       expiringClients,
+      monthlyRevenue,
       recentLogins,
     });
   } catch (error) {
@@ -59,10 +68,10 @@ router.get('/clients', authMiddleware, requireMaster, async (req: AuthRequest, r
     const clients = await prisma.user.findMany({
       where: { isMaster: false },
       select: {
-        id: true, username: true, name: true, email: true, companyName: true,
+        id: true, username: true, name: true, email: true, phone: true, companyName: true,
         isActive: true, subscriptionStatus: true, subscriptionPlan: true,
         subscriptionStart: true, subscriptionEnd: true, lastPaymentDate: true,
-        lastLoginAt: true, createdAt: true,
+        lastLoginAt: true, createdAt: true, monthlyValue: true, notes: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -76,7 +85,7 @@ router.get('/clients', authMiddleware, requireMaster, async (req: AuthRequest, r
 // Criar novo cliente
 router.post('/clients', authMiddleware, requireMaster, async (req: AuthRequest, res: Response) => {
   try {
-    const { username, password, name, email, companyName, subscriptionPlan, subscriptionEnd } = req.body;
+    const { username, password, name, email, phone, companyName, subscriptionPlan, subscriptionEnd, monthlyValue, notes } = req.body;
 
     const existing = await prisma.user.findFirst({
       where: { OR: [{ username }, { email }] },
@@ -89,12 +98,14 @@ router.post('/clients', authMiddleware, requireMaster, async (req: AuthRequest, 
 
     const client = await prisma.user.create({
       data: {
-        username, password: hashedPassword, name, email, companyName,
+        username, password: hashedPassword, name, email, phone, companyName,
         role: 'admin', isActive: true, isMaster: false,
         subscriptionStatus: 'active', subscriptionPlan: subscriptionPlan || 'basic',
         subscriptionStart: new Date(),
         subscriptionEnd: subscriptionEnd ? new Date(subscriptionEnd) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         lastPaymentDate: new Date(),
+        monthlyValue: monthlyValue || null,
+        notes: notes || null,
       },
     });
 
@@ -109,15 +120,18 @@ router.post('/clients', authMiddleware, requireMaster, async (req: AuthRequest, 
 router.put('/clients/:id', authMiddleware, requireMaster, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, email, companyName, subscriptionPlan, subscriptionEnd, subscriptionStatus, isActive, password } = req.body;
+    const { name, email, phone, companyName, subscriptionPlan, subscriptionEnd, subscriptionStatus, isActive, password, monthlyValue, notes } = req.body;
 
-    const updateData: any = { name, email, companyName, subscriptionPlan, subscriptionStatus, isActive };
+    const updateData: any = { name, email, phone, companyName, subscriptionPlan, subscriptionStatus, isActive, notes };
     
     if (subscriptionEnd) {
       updateData.subscriptionEnd = new Date(subscriptionEnd);
     }
     if (password) {
       updateData.password = await bcrypt.hash(password, 12);
+    }
+    if (monthlyValue !== undefined) {
+      updateData.monthlyValue = monthlyValue ? parseFloat(monthlyValue) : null;
     }
 
     await prisma.user.update({ where: { id }, data: updateData });
@@ -173,7 +187,7 @@ router.post('/clients/:id/activate', authMiddleware, requireMaster, async (req: 
 router.post('/clients/:id/payment', authMiddleware, requireMaster, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { daysToAdd } = req.body;
+    const { daysToAdd, amount, method, notes } = req.body;
 
     const client = await prisma.user.findUnique({ where: { id } });
     if (!client) return res.status(404).json({ error: 'Cliente não encontrado' });
@@ -191,6 +205,20 @@ router.post('/clients/:id/payment', authMiddleware, requireMaster, async (req: A
         isActive: true,
       },
     });
+
+    // Registrar histórico de pagamento
+    if (amount) {
+      await prisma.clientPayment.create({
+        data: {
+          clientId: id,
+          amount: parseFloat(amount),
+          daysAdded: daysToAdd || 30,
+          method: method || null,
+          notes: notes || null,
+        },
+      });
+    }
+
     res.json({ success: true, newEndDate: newEnd });
   } catch (error) {
     console.error('Erro ao registrar pagamento:', error);

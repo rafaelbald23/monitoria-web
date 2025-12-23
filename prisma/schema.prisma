@@ -27,6 +27,9 @@ model User {
   lastPaymentDate    DateTime?
   lastLoginAt        DateTime?
   isMaster           Boolean  @default(false) // true = dono do sistema
+  monthlyValue       Float?   // Valor da mensalidade
+  notes              String?  // Observações sobre o cliente
+  phone              String?  // Telefone/WhatsApp
 
   blingAccounts BlingAccount[]
   movements     Movement[]
@@ -276,4 +279,15 @@ model SalesGoal {
   productIds   String?
   status       String   @default("active")
   createdAt    DateTime @default(now())
+}
+
+// Histórico de pagamentos dos clientes (para o painel master)
+model ClientPayment {
+  id          String   @id @default(uuid())
+  clientId    String
+  amount      Float
+  daysAdded   Int
+  method      String?  // pix, boleto, cartao, etc
+  notes       String?
+  createdAt   DateTime @default(now())
 }
