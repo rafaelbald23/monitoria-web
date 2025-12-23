@@ -1,0 +1,269 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  password  String
+  name      String
+  email     String   @unique
+  role      String   @default("seller")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  blingAccounts BlingAccount[]
+  movements     Movement[]
+  sales         Sale[]
+  priceHistory  PriceHistory[]
+  reservations  Reservation[]
+  auditLogs     AuditLog[]
+}
+
+model BlingAccount {
+  id             String    @id @default(uuid())
+  name           String
+  userId         String
+  clientId       String?
+  clientSecret   String?
+  accessToken    String?
+  refreshToken   String?
+  tokenExpiresAt DateTime?
+  isActive       Boolean   @default(true)
+  syncStatus     String?
+  lastSync       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productMappings ProductMapping[]
+  movements       Movement[]
+  sales           Sale[]
+  syncLogs        SyncLog[]
+}
+
+model Product {
+  id           String   @id @default(uuid())
+  sku          String   @unique
+  internalCode String?  @unique
+  name         String
+  description  String?
+  unit         String   @default("UN")
+  minimumStock Int      @default(0)
+  category     String?
+  costPrice    Float?
+  salePrice    Float?
+  profitMargin Float?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  mappings     ProductMapping[]
+  movements    Movement[]
+  saleItems    SaleItem[]
+  reservations Reservation[]
+  priceHistory PriceHistory[]
+  stockAlerts  StockAlert[]
+}
+
+model ProductMapping {
+  id             String   @id @default(uuid())
+  productId      String
+  accountId      String
+  blingProductId String
+  blingSku       String?
+  createdAt      DateTime @default(now())
+
+  product Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  account BlingAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, accountId])
+}
+
+model Movement {
+  id              String    @id @default(uuid())
+  type            String
+  productId       String
+  accountId       String?
+  quantity        Int
+  previousQty     Int?
+  newQty          Int?
+  reason          String
+  supplier        String?
+  customer        String?
+  notes           String?
+  userId          String
+  relatedMovement String?
+  saleId          String?
+  syncStatus      String    @default("pending")
+  syncAttempts    Int       @default(0)
+  syncError       String?
+  createdAt       DateTime  @default(now())
+  syncedAt        DateTime?
+
+  product Product       @relation(fields: [productId], references: [id])
+  account BlingAccount? @relation(fields: [accountId], references: [id])
+  sale    Sale?         @relation(fields: [saleId], references: [id])
+  user    User          @relation(fields: [userId], references: [id])
+}
+
+model Customer {
+  id              String   @id @default(uuid())
+  name            String
+  documentType    String
+  document        String   @unique
+  email           String?
+  phone           String?
+  address         String?
+  city            String?
+  state           String?
+  zipCode         String?
+  notes           String?
+  blingCustomerId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  sales        Sale[]
+  reservations Reservation[]
+}
+
+model Sale {
+  id               String    @id @default(uuid())
+  saleNumber       String    @unique
+  customerId       String?
+  accountId        String?
+  totalAmount      Float
+  discount         Float?
+  finalAmount      Float
+  status           String    @default("completed")
+  paymentMethod    String?
+  installments     Int?
+  fiscalNoteKey    String?
+  fiscalNoteNumber String?
+  fiscalNoteStatus String?
+  notes            String?
+  userId           String
+  cancelReason     String?
+  cancelledAt      DateTime?
+  createdAt        DateTime  @default(now())
+
+  customer  Customer?     @relation(fields: [customerId], references: [id])
+  account   BlingAccount? @relation(fields: [accountId], references: [id])
+  user      User          @relation(fields: [userId], references: [id])
+  items     SaleItem[]
+  payments  Payment[]
+  movements Movement[]
+}
+
+model SaleItem {
+  id         String @id @default(uuid())
+  saleId     String
+  productId  String
+  quantity   Int
+  unitPrice  Float
+  discount   Float?
+  totalPrice Float
+
+  sale    Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+}
+
+model Payment {
+  id               String   @id @default(uuid())
+  saleId           String
+  method           String
+  amount           Float
+  installments     Int      @default(1)
+  installmentValue Float?
+  paidAt           DateTime @default(now())
+
+  sale Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+}
+
+model Reservation {
+  id         String   @id @default(uuid())
+  productId  String
+  customerId String?
+  quantity   Int
+  expiresAt  DateTime
+  status     String   @default("active")
+  notes      String?
+  userId     String
+  createdAt  DateTime @default(now())
+
+  product  Product   @relation(fields: [productId], references: [id])
+  customer Customer? @relation(fields: [customerId], references: [id])
+  user     User      @relation(fields: [userId], references: [id])
+}
+
+model PriceHistory {
+  id           String   @id @default(uuid())
+  productId    String
+  costPrice    Float?
+  salePrice    Float
+  profitMargin Float?
+  userId       String
+  createdAt    DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String
+  action    String
+  entity    String
+  entityId  String
+  changes   String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model SyncLog {
+  id           String   @id @default(uuid())
+  accountId    String?
+  operation    String
+  method       String
+  payload      String?
+  response     String?
+  statusCode   Int?
+  success      Boolean
+  errorMessage String?
+  duration     Int?
+  createdAt    DateTime @default(now())
+
+  account BlingAccount? @relation(fields: [accountId], references: [id])
+}
+
+model StockAlert {
+  id           String    @id @default(uuid())
+  productId    String
+  currentStock Int
+  minimumStock Int
+  status       String    @default("active")
+  createdAt    DateTime  @default(now())
+  resolvedAt   DateTime?
+
+  product Product @relation(fields: [productId], references: [id])
+}
+
+model SalesGoal {
+  id           String   @id @default(uuid())
+  name         String
+  targetAmount Float
+  startDate    DateTime
+  endDate      DateTime
+  userId       String?
+  productIds   String?
+  status       String   @default("active")
+  createdAt    DateTime @default(now())
+}

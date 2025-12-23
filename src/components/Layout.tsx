@@ -1,0 +1,157 @@
+import { Link, useLocation } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
+import { useTheme } from '../hooks/useTheme';
+import { Logo } from './Logo';
+import {
+  DashboardIcon,
+  PackageIcon,
+  ShoppingCartIcon,
+  LinkIcon,
+  ChartIcon,
+  SettingsIcon,
+  LogoutIcon,
+  SunIcon,
+  MoonIcon,
+  PlusIcon,
+} from './Icons';
+
+interface LayoutProps {
+  children: React.ReactNode;
+}
+
+interface MenuItem {
+  path: string;
+  label: string;
+  icon: React.ReactNode;
+}
+
+export default function Layout({ children }: LayoutProps) {
+  const { user, logout } = useAuth();
+  const location = useLocation();
+  const { isDarkMode, toggleTheme } = useTheme();
+
+  const isActive = (path: string) => location.pathname === path;
+
+  const menuItems: MenuItem[] = [
+    { path: '/dashboard', label: 'Dashboard', icon: <DashboardIcon size={20} /> },
+    { path: '/products', label: 'Produtos', icon: <PackageIcon size={20} /> },
+    { path: '/new-sale', label: 'Nova Venda', icon: <PlusIcon size={20} /> },
+    { path: '/sales', label: 'Vendas', icon: <ShoppingCartIcon size={20} /> },
+    { path: '/accounts', label: 'Contas Bling', icon: <LinkIcon size={20} /> },
+    { path: '/reports', label: 'Relatórios', icon: <ChartIcon size={20} /> },
+    { path: '/settings', label: 'Configurações', icon: <SettingsIcon size={20} /> },
+  ];
+
+  return (
+    <div className={`flex h-screen transition-colors duration-300 ${
+      isDarkMode ? 'bg-slate-900' : 'bg-gray-100'
+    }`}>
+      {/* Sidebar */}
+      <aside className={`w-64 flex flex-col transition-colors duration-300 ${
+        isDarkMode 
+          ? 'bg-slate-800/50 backdrop-blur-xl border-r border-white/10' 
+          : 'bg-white shadow-lg border-r border-gray-200'
+      }`}>
+        {/* Logo Section */}
+        <div className={`p-6 border-b ${isDarkMode ? 'border-white/10' : 'border-gray-200'}`}>
+          <div className="flex items-center gap-3">
+            <Logo size={40} />
+            <div>
+              <h1 className="text-xl font-bold bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+                monitorIA
+              </h1>
+              <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                Gestão de Estoque
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 p-4 space-y-1">
+          {menuItems.map((item) => (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+                isActive(item.path)
+                  ? isDarkMode
+                    ? 'bg-gradient-to-r from-cyan-500/20 via-purple-500/20 to-pink-500/20 text-white border border-purple-500/30'
+                    : 'bg-gradient-to-r from-cyan-50 via-purple-50 to-pink-50 text-purple-700 border border-purple-200'
+                  : isDarkMode
+                    ? 'text-gray-300 hover:bg-white/5 hover:text-white'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+              }`}
+            >
+              <span className={isActive(item.path) 
+                ? 'text-purple-400' 
+                : isDarkMode ? 'text-gray-400' : 'text-gray-500'
+              }>
+                {item.icon}
+              </span>
+              <span className="font-medium">{item.label}</span>
+              {isActive(item.path) && (
+                <div className="ml-auto w-1.5 h-1.5 rounded-full bg-gradient-to-r from-cyan-400 to-purple-400"></div>
+              )}
+            </Link>
+          ))}
+        </nav>
+
+        {/* User Section */}
+        <div className={`p-4 border-t ${isDarkMode ? 'border-white/10' : 'border-gray-200'}`}>
+          {/* Theme Toggle */}
+          <button
+            onClick={toggleTheme}
+            className={`w-full flex items-center justify-center gap-2 px-4 py-2 mb-3 rounded-xl transition-all duration-200 ${
+              isDarkMode 
+                ? 'bg-white/5 text-gray-300 hover:bg-white/10' 
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {isDarkMode ? <SunIcon size={16} /> : <MoonIcon size={16} />}
+            <span className="text-sm">{isDarkMode ? 'Tema Claro' : 'Tema Escuro'}</span>
+          </button>
+
+          {/* User Info */}
+          <div className={`flex items-center gap-3 p-3 rounded-xl ${
+            isDarkMode ? 'bg-white/5' : 'bg-gray-50'
+          }`}>
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold ${
+              isDarkMode 
+                ? 'bg-gradient-to-br from-cyan-500 to-purple-500' 
+                : 'bg-gradient-to-br from-cyan-600 to-purple-600'
+            }`}>
+              {user?.name?.charAt(0).toUpperCase() || 'U'}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-medium truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                {user?.name}
+              </p>
+              <p className={`text-xs capitalize ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                {user?.role}
+              </p>
+            </div>
+            <button
+              onClick={logout}
+              className={`p-2 rounded-lg transition-colors ${
+                isDarkMode 
+                  ? 'text-gray-400 hover:text-red-400 hover:bg-red-500/10' 
+                  : 'text-gray-500 hover:text-red-600 hover:bg-red-50'
+              }`}
+              title="Sair"
+            >
+              <LogoutIcon size={18} />
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <main className={`flex-1 overflow-auto transition-colors duration-300 ${
+        isDarkMode ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-900'
+      }`}>
+        {children}
+      </main>
+    </div>
+  );
+}
