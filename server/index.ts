@@ -11,6 +11,8 @@ import salesRoutes from './routes/sales.js';
 import accountsRoutes from './routes/accounts.js';
 import dashboardRoutes from './routes/dashboard.js';
 import blingRoutes from './routes/bling.js';
+import usersRoutes from './routes/users.js';
+import masterRoutes from './routes/master.js';
 
 dotenv.config();
 
@@ -35,6 +37,8 @@ app.use('/api/sales', salesRoutes);
 app.use('/api/accounts', accountsRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/bling', blingRoutes);
+app.use('/api/users', usersRoutes);
+app.use('/api/master', masterRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

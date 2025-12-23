@@ -115,6 +115,52 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ accountId }),
     }),
+
+  // Users
+  getUsers: () => request('/users'),
+  createUser: (data: any) =>
+    request('/users', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateUser: (id: string, data: any) =>
+    request(`/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  deleteUser: (id: string) =>
+    request(`/users/${id}`, {
+      method: 'DELETE',
+    }),
+
+  // Master Panel
+  checkMaster: () => request('/master/check'),
+  getMasterDashboard: () => request('/master/dashboard'),
+  getClients: () => request('/master/clients'),
+  createClient: (data: any) =>
+    request('/master/clients', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateClient: (id: string, data: any) =>
+    request(`/master/clients/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  suspendClient: (id: string) =>
+    request(`/master/clients/${id}/suspend`, { method: 'POST' }),
+  activateClient: (id: string, daysToAdd?: number) =>
+    request(`/master/clients/${id}/activate`, {
+      method: 'POST',
+      body: JSON.stringify({ daysToAdd }),
+    }),
+  registerPayment: (id: string, daysToAdd?: number) =>
+    request(`/master/clients/${id}/payment`, {
+      method: 'POST',
+      body: JSON.stringify({ daysToAdd }),
+    }),
+  deleteClient: (id: string) =>
+    request(`/master/clients/${id}`, { method: 'DELETE' }),
 };
 
 export default api;

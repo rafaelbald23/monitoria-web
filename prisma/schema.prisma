@@ -18,6 +18,16 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Campos para controle de assinatura (clientes)
+  companyName       String?   // Nome da empresa do cliente
+  subscriptionStatus String?  @default("active") // active, suspended, cancelled
+  subscriptionPlan   String?  @default("basic")  // basic, pro, enterprise
+  subscriptionStart  DateTime?
+  subscriptionEnd    DateTime?
+  lastPaymentDate    DateTime?
+  lastLoginAt        DateTime?
+  isMaster           Boolean  @default(false) // true = dono do sistema
+
   blingAccounts BlingAccount[]
   movements     Movement[]
   sales         Sale[]

@@ -21,13 +21,33 @@ router.post('/login', async (req: Request, res: Response) => {
     }
 
     if (!user.isActive) {
-      return res.status(401).json({ success: false, error: 'Usuário inativo' });
+      return res.status(401).json({ success: false, error: 'Usuário inativo. Entre em contato com o suporte.' });
+    }
+
+    // Verificar assinatura (exceto para master)
+    if (!user.isMaster && user.subscriptionStatus === 'suspended') {
+      return res.status(401).json({ success: false, error: 'Assinatura suspensa. Entre em contato para regularizar.' });
+    }
+
+    if (!user.isMaster && user.subscriptionEnd && new Date(user.subscriptionEnd) < new Date()) {
+      // Suspender automaticamente se venceu
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { subscriptionStatus: 'suspended', isActive: false },
+      });
+      return res.status(401).json({ success: false, error: 'Assinatura vencida. Entre em contato para renovar.' });
     }
 
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
       return res.status(401).json({ success: false, error: 'Usuário ou senha inválidos' });
     }
+
+    // Atualizar último login
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
 
     const token = jwt.sign(
       { userId: user.id, username: user.username, role: user.role },
@@ -52,6 +72,7 @@ router.post('/login', async (req: Request, res: Response) => {
           name: user.name,
           email: user.email,
           role: user.role,
+          isMaster: user.isMaster,
         },
       },
     });
