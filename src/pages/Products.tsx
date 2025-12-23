@@ -3,6 +3,8 @@ import Layout from '../components/Layout';
 import { useTheme } from '../hooks/useTheme';
 import api from '../lib/api';
 import { PlusIcon, RefreshIcon, EditIcon, TrashIcon, AlertIcon } from '../components/Icons';
+import { ExportButton } from '../components/ExportButton';
+import { exportToCSV, exportToPDF, generateTableHTML } from '../utils/export';
 
 interface Product {
   id: string;
@@ -45,7 +47,7 @@ export default function Products() {
   const loadProducts = async () => {
     try {
       setLoading(true);
-      const result = await api.getProducts();
+      const result = await api.getProducts() as Product[];
       setProducts(result);
     } catch (error) {
       console.error('Erro ao carregar produtos:', error);
@@ -57,7 +59,7 @@ export default function Products() {
 
   const loadAccounts = async () => {
     try {
-      const result = await api.getAccounts();
+      const result = await api.getAccounts() as Account[];
       setAccounts(result.filter((acc: Account) => acc.isActive));
     } catch (error) {
       console.error('Erro ao carregar contas:', error);
@@ -161,6 +163,23 @@ export default function Products() {
     setShowModal(true);
   };
 
+  const productColumns = [
+    { key: 'sku', label: 'SKU' },
+    { key: 'name', label: 'Nome' },
+    { key: 'price', label: 'Preço' },
+    { key: 'stock', label: 'Estoque' },
+    { key: 'accountName', label: 'Conta Bling' },
+  ];
+
+  const handleExportCSV = () => {
+    exportToCSV(products, 'produtos', productColumns);
+  };
+
+  const handleExportPDF = () => {
+    const tableHTML = generateTableHTML(products, productColumns);
+    exportToPDF('Relatório de Produtos', tableHTML);
+  };
+
   return (
     <Layout>
       <div className="p-6">
@@ -175,6 +194,7 @@ export default function Products() {
             </p>
           </div>
           <div className="flex gap-3">
+            <ExportButton onExportCSV={handleExportCSV} onExportPDF={handleExportPDF} />
             <button
               onClick={loadProducts}
               disabled={loading}

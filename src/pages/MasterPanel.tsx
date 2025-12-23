@@ -4,9 +4,11 @@ import { useTheme } from '../hooks/useTheme';
 import api from '../lib/api';
 import Layout from '../components/Layout';
 import { CurrencyInput } from '../components/CurrencyInput';
+import { ExportButton } from '../components/ExportButton';
+import { exportToCSV, exportToPDF, generateTableHTML } from '../utils/export';
 import {
   RefreshIcon, PlusIcon, UserIcon, DollarIcon, AlertIcon,
-  CheckIcon, TrashIcon, EditIcon, LinkIcon
+  CheckIcon, TrashIcon, LinkIcon
 } from '../components/Icons';
 
 interface Client {
@@ -194,6 +196,34 @@ export default function MasterPanel() {
   const btnSecondary = `px-4 py-2 rounded-xl transition-colors ${isDarkMode ? 'bg-white/5 text-gray-300 hover:bg-white/10' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`;
   const btnPrimary = 'px-4 py-2 bg-gradient-to-r from-cyan-500 to-purple-500 text-white rounded-xl hover:opacity-90 transition-opacity';
 
+  const clientColumns = [
+    { key: 'companyName', label: 'Empresa' },
+    { key: 'name', label: 'Responsável' },
+    { key: 'username', label: 'Usuário' },
+    { key: 'email', label: 'Email' },
+    { key: 'subscriptionStatus', label: 'Status' },
+    { key: 'subscriptionEnd', label: 'Vencimento' },
+    { key: 'monthlyValue', label: 'Mensalidade' },
+    { key: 'lastLoginAt', label: 'Último Acesso' },
+  ];
+
+  const handleExportCSV = () => {
+    const dataToExport = filteredClients.map(client => ({
+      ...client,
+      subscriptionStatus: client.subscriptionStatus === 'active' ? 'Ativo' : 'Suspenso',
+    }));
+    exportToCSV(dataToExport, 'clientes', clientColumns);
+  };
+
+  const handleExportPDF = () => {
+    const dataToExport = filteredClients.map(client => ({
+      ...client,
+      subscriptionStatus: client.subscriptionStatus === 'active' ? 'Ativo' : 'Suspenso',
+    }));
+    const tableHTML = generateTableHTML(dataToExport, clientColumns);
+    exportToPDF('Relatório de Clientes', tableHTML);
+  };
+
   return (
     <Layout>
       <div className="p-6 max-w-7xl mx-auto">
@@ -207,9 +237,12 @@ export default function MasterPanel() {
               Gerencie seus clientes e assinaturas
             </p>
           </div>
-          <button onClick={() => { resetForm(); setShowModal(true); }} className={`${btnPrimary} flex items-center gap-2`}>
-            <PlusIcon size={18} /> Novo Cliente
-          </button>
+          <div className="flex gap-2">
+            <ExportButton onExportCSV={handleExportCSV} onExportPDF={handleExportPDF} />
+            <button onClick={() => { resetForm(); setShowModal(true); }} className={`${btnPrimary} flex items-center gap-2`}>
+              <PlusIcon size={18} /> Novo Cliente
+            </button>
+          </div>
         </div>
 
         {message && (

@@ -4,6 +4,8 @@ import Layout from '../components/Layout';
 import { useTheme } from '../hooks/useTheme';
 import api from '../lib/api';
 import { RefreshIcon, FilterIcon, PlusIcon, DollarIcon, ShoppingCartIcon } from '../components/Icons';
+import { ExportButton } from '../components/ExportButton';
+import { exportToCSV, exportToPDF, generateTableHTML } from '../utils/export';
 
 interface Sale {
   id: string;
@@ -32,7 +34,7 @@ export default function Sales() {
   const loadSales = async () => {
     try {
       setLoading(true);
-      const result = await api.getSales();
+      const result = await api.getSales() as Sale[];
       setSales(result);
       
       const today = new Date().toDateString();
@@ -52,6 +54,31 @@ export default function Sales() {
   };
 
   const filteredSales = sales.filter(sale => filter === 'all' || sale.status === filter);
+
+  const salesColumns = [
+    { key: 'saleNumber', label: 'Pedido' },
+    { key: 'createdAt', label: 'Data' },
+    { key: 'totalAmount', label: 'Valor' },
+    { key: 'status', label: 'Status' },
+    { key: 'accountName', label: 'Conta Bling' },
+  ];
+
+  const handleExportCSV = () => {
+    const dataToExport = filteredSales.map(sale => ({
+      ...sale,
+      status: getStatusLabel(sale.status),
+    }));
+    exportToCSV(dataToExport, 'vendas', salesColumns);
+  };
+
+  const handleExportPDF = () => {
+    const dataToExport = filteredSales.map(sale => ({
+      ...sale,
+      status: getStatusLabel(sale.status),
+    }));
+    const tableHTML = generateTableHTML(dataToExport, salesColumns);
+    exportToPDF('Relatório de Vendas', tableHTML);
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -80,6 +107,7 @@ export default function Sales() {
             <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Histórico de vendas e notas fiscais</p>
           </div>
           <div className="flex items-center gap-3">
+            <ExportButton onExportCSV={handleExportCSV} onExportPDF={handleExportPDF} />
             <button onClick={loadSales} disabled={loading} className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-colors ${isDarkMode ? 'bg-white/5 text-gray-300 hover:bg-white/10' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
               <RefreshIcon size={18} className={loading ? 'animate-spin' : ''} />
               Atualizar
