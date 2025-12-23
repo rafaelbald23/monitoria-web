@@ -13,6 +13,7 @@ import {
   SunIcon,
   MoonIcon,
   PlusIcon,
+  CrownIcon,
 } from './Icons';
 
 interface LayoutProps {
@@ -23,6 +24,7 @@ interface MenuItem {
   path: string;
   label: string;
   icon: React.ReactNode;
+  masterOnly?: boolean;
 }
 
 export default function Layout({ children }: LayoutProps) {
@@ -31,6 +33,7 @@ export default function Layout({ children }: LayoutProps) {
   const { isDarkMode, toggleTheme } = useTheme();
 
   const isActive = (path: string) => location.pathname === path;
+  const isMaster = user?.role === 'master';
 
   const menuItems: MenuItem[] = [
     { path: '/dashboard', label: 'Dashboard', icon: <DashboardIcon size={20} /> },
@@ -40,7 +43,11 @@ export default function Layout({ children }: LayoutProps) {
     { path: '/accounts', label: 'Contas Bling', icon: <LinkIcon size={20} /> },
     { path: '/reports', label: 'Relatórios', icon: <ChartIcon size={20} /> },
     { path: '/settings', label: 'Configurações', icon: <SettingsIcon size={20} /> },
+    { path: '/master', label: 'Painel Master', icon: <CrownIcon size={20} />, masterOnly: true },
   ];
+
+  // Filtra itens do menu baseado no role do usuário
+  const visibleMenuItems = menuItems.filter(item => !item.masterOnly || isMaster);
 
   return (
     <div className={`flex h-screen transition-colors duration-300 ${
@@ -69,7 +76,7 @@ export default function Layout({ children }: LayoutProps) {
 
         {/* Navigation */}
         <nav className="flex-1 p-4 space-y-1">
-          {menuItems.map((item) => (
+          {visibleMenuItems.map((item) => (
             <Link
               key={item.path}
               to={item.path}
