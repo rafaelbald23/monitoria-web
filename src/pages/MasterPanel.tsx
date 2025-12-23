@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../hooks/useTheme';
-import { useAuth } from '../hooks/useAuth';
 import api from '../lib/api';
 import Layout from '../components/Layout';
+import { CurrencyInput } from '../components/CurrencyInput';
 import {
   RefreshIcon, PlusIcon, UserIcon, DollarIcon, AlertIcon,
-  CheckIcon, TrashIcon, EditIcon, FilterIcon
+  CheckIcon, TrashIcon
 } from '../components/Icons';
 
 interface Client {
@@ -469,8 +469,8 @@ export default function MasterPanel() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className={`block text-sm mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Valor mensal (R$)</label>
-                    <input type="number" step="0.01" value={formData.monthlyValue} onChange={(e) => setFormData({ ...formData, monthlyValue: e.target.value })} className={inputClass} placeholder="99.90" />
+                    <label className={`block text-sm mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Valor mensal</label>
+                    <CurrencyInput value={formData.monthlyValue} onChange={(val) => setFormData({ ...formData, monthlyValue: val })} className={inputClass} placeholder="R$ 0,00" />
                   </div>
                   <div>
                     <label className={`block text-sm mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Vencimento</label>
@@ -503,8 +503,8 @@ export default function MasterPanel() {
               <form onSubmit={handlePayment} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className={`block text-sm mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Valor (R$)</label>
-                    <input type="number" step="0.01" value={paymentData.amount} onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value })} className={inputClass} placeholder="99.90" />
+                    <label className={`block text-sm mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Valor</label>
+                    <CurrencyInput value={paymentData.amount} onChange={(val) => setPaymentData({ ...paymentData, amount: val })} className={inputClass} placeholder="R$ 0,00" />
                   </div>
                   <div>
                     <label className={`block text-sm mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Dias a adicionar</label>
