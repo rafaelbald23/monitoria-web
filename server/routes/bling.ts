@@ -7,7 +7,16 @@ const router = Router();
 
 const BLING_AUTH_URL = 'https://www.bling.com.br/Api/v3/oauth/authorize';
 const BLING_TOKEN_URL = 'https://www.bling.com.br/Api/v3/oauth/token';
-const BLING_REDIRECT_URI = process.env.BLING_REDIRECT_URI || 'http://localhost:3001/api/bling/callback';
+
+// Detecta automaticamente a URL base
+function getRedirectUri(req: Request): string {
+  if (process.env.BLING_REDIRECT_URI) {
+    return process.env.BLING_REDIRECT_URI;
+  }
+  const protocol = req.headers['x-forwarded-proto'] || 'http';
+  const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3001';
+  return `${protocol}://${host}/api/bling/callback`;
+}
 
 // Store pending OAuth states
 const pendingStates = new Map<string, { accountId: string; userId: string; timestamp: number }>();
@@ -40,7 +49,10 @@ router.post('/start-oauth', authMiddleware, async (req: AuthRequest, res: Respon
     const state = Math.random().toString(36).substring(2) + Date.now().toString(36);
     pendingStates.set(state, { accountId, userId, timestamp: Date.now() });
 
-    const authUrl = `${BLING_AUTH_URL}?response_type=code&client_id=${account.clientId}&redirect_uri=${encodeURIComponent(BLING_REDIRECT_URI)}&state=${state}`;
+    const redirectUri = getRedirectUri(req);
+    console.log('Redirect URI:', redirectUri);
+    
+    const authUrl = `${BLING_AUTH_URL}?response_type=code&client_id=${account.clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
 
     res.json({ success: true, authUrl });
   } catch (error: any) {
@@ -98,13 +110,14 @@ router.get('/callback', async (req: Request, res: Response) => {
 
     // Exchange code for tokens
     const credentials = Buffer.from(`${account.clientId}:${account.clientSecret}`).toString('base64');
+    const redirectUri = getRedirectUri(req);
 
     const tokenResponse = await axios.post(
       BLING_TOKEN_URL,
       new URLSearchParams({
         grant_type: 'authorization_code',
         code: code as string,
-        redirect_uri: BLING_REDIRECT_URI,
+        redirect_uri: redirectUri,
       }).toString(),
       {
         headers: {
