@@ -6,7 +6,7 @@ import Layout from '../components/Layout';
 import { CurrencyInput } from '../components/CurrencyInput';
 import {
   RefreshIcon, PlusIcon, UserIcon, DollarIcon, AlertIcon,
-  CheckIcon, TrashIcon
+  CheckIcon, TrashIcon, EditIcon, LinkIcon
 } from '../components/Icons';
 
 interface Client {
@@ -152,12 +152,12 @@ export default function MasterPanel() {
   };
 
   const copyCredentials = (client: Client) => {
-    const text = `🔐 Credenciais de Acesso - monitorIA\n\n` +
-      `📧 Usuário: ${client.username}\n` +
-      `🔗 Acesso: https://monitoria-web-production.up.railway.app\n\n` +
+    const text = `Credenciais de Acesso - monitorIA\n\n` +
+      `Usuário: ${client.username}\n` +
+      `Acesso: https://monitoria-web-production.up.railway.app\n\n` +
       `Qualquer dúvida, estou à disposição!`;
     navigator.clipboard.writeText(text);
-    showMessage('success', 'Credenciais copiadas! Cole no WhatsApp.');
+    showMessage('success', 'Credenciais copiadas!');
   };
 
   const getStatusColor = (status: string) => {
@@ -354,7 +354,6 @@ export default function MasterPanel() {
                   }`}>
                     {formatDate(client.subscriptionEnd)}
                     {isExpired(client.subscriptionEnd) && ' (Vencido!)'}
-                    {isExpiringSoon(client.subscriptionEnd) && ' ⚠️'}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -369,22 +368,22 @@ export default function MasterPanel() {
 
               {client.notes && (
                 <div className={`mt-3 p-2 rounded-lg text-xs ${isDarkMode ? 'bg-white/5 text-gray-400' : 'bg-gray-50 text-gray-500'}`}>
-                  📝 {client.notes}
+                  {client.notes}
                 </div>
               )}
 
               <div className="flex gap-2 mt-4 pt-4 border-t border-white/10">
                 <button
                   onClick={() => { setSelectedClient(client); setPaymentData({ ...paymentData, amount: client.monthlyValue?.toString() || '' }); setShowPaymentModal(true); }}
-                  className={`flex-1 py-2 rounded-lg text-sm font-medium ${isDarkMode ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 ${isDarkMode ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
                 >
-                  💰 Pagamento
+                  <DollarIcon size={16} /> Pagamento
                 </button>
                 <button
                   onClick={() => copyCredentials(client)}
-                  className={`flex-1 py-2 rounded-lg text-sm font-medium ${isDarkMode ? 'bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'}`}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 ${isDarkMode ? 'bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'}`}
                 >
-                  📋 Copiar
+                  <LinkIcon size={16} /> Copiar
                 </button>
               </div>
 
@@ -432,7 +431,7 @@ export default function MasterPanel() {
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className={`rounded-2xl p-6 w-full max-w-lg border max-h-[90vh] overflow-y-auto ${isDarkMode ? 'bg-slate-800 border-white/10' : 'bg-white border-gray-200'}`}>
               <h2 className={`text-xl font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                {editingClient ? 'Editar Cliente' : '➕ Novo Cliente'}
+                {editingClient ? 'Editar Cliente' : 'Novo Cliente'}
               </h2>
               <form onSubmit={handleSubmit} className="space-y-4">
                 {!editingClient && (
@@ -483,7 +482,7 @@ export default function MasterPanel() {
                 </div>
                 <div className="flex justify-end gap-2 pt-2">
                   <button type="button" onClick={() => setShowModal(false)} className={btnSecondary}>Cancelar</button>
-                  <button type="submit" className={btnPrimary}>💾 Salvar</button>
+                  <button type="submit" className={btnPrimary}>Salvar</button>
                 </div>
               </form>
             </div>
@@ -495,7 +494,7 @@ export default function MasterPanel() {
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className={`rounded-2xl p-6 w-full max-w-md border ${isDarkMode ? 'bg-slate-800 border-white/10' : 'bg-white border-gray-200'}`}>
               <h2 className={`text-xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                💰 Registrar Pagamento
+                Registrar Pagamento
               </h2>
               <p className={`text-sm mb-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                 Cliente: <strong>{selectedClient.companyName || selectedClient.name}</strong>
@@ -527,7 +526,7 @@ export default function MasterPanel() {
                 </div>
                 <div className="flex justify-end gap-2 pt-2">
                   <button type="button" onClick={() => setShowPaymentModal(false)} className={btnSecondary}>Cancelar</button>
-                  <button type="submit" className={btnPrimary}>✅ Confirmar Pagamento</button>
+                  <button type="submit" className={btnPrimary}>Confirmar</button>
                 </div>
               </form>
             </div>
