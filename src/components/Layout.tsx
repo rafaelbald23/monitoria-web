@@ -33,7 +33,7 @@ export default function Layout({ children }: LayoutProps) {
   const { isDarkMode, toggleTheme } = useTheme();
 
   const isActive = (path: string) => location.pathname === path;
-  const isMaster = user?.role === 'master';
+  const isMaster = user?.isMaster === true;
 
   const menuItems: MenuItem[] = [
     { path: '/dashboard', label: 'Dashboard', icon: <DashboardIcon size={20} /> },

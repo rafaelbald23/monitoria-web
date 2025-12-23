@@ -9,6 +9,7 @@ interface User {
   email: string;
   role: string;
   isActive: boolean;
+  isMaster?: boolean;
 }
 
 interface AuthState {
