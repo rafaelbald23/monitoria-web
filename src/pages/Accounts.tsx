@@ -195,7 +195,7 @@ export default function Accounts() {
                     <li>Acesse sua conta no Bling</li>
                     <li>Vá em Configurações → Integrações → API</li>
                     <li>Crie um novo aplicativo</li>
-                    <li>No campo "URL de Callback" coloque: <code className="bg-black/20 px-1 rounded">http://localhost:3001/api/bling/callback</code></li>
+                    <li>No campo "URL de Callback" coloque: <code className="bg-black/20 px-1 rounded">https://monitoria-web-production.up.railway.app/api/bling/callback</code></li>
                     <li>Copie o Client ID e Client Secret</li>
                   </ol>
                 </div>

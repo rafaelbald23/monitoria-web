@@ -10,12 +10,18 @@ const BLING_TOKEN_URL = 'https://www.bling.com.br/Api/v3/oauth/token';
 
 // Detecta automaticamente a URL base
 function getRedirectUri(req: Request): string {
+  // Prioridade: variável de ambiente > headers > fallback
   if (process.env.BLING_REDIRECT_URI) {
+    console.log('Usando BLING_REDIRECT_URI do env:', process.env.BLING_REDIRECT_URI);
     return process.env.BLING_REDIRECT_URI;
   }
-  const protocol = req.headers['x-forwarded-proto'] || 'http';
+  
+  // Para Railway e outros proxies reversos
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3001';
-  return `${protocol}://${host}/api/bling/callback`;
+  const redirectUri = `${protocol}://${host}/api/bling/callback`;
+  console.log('Redirect URI gerado automaticamente:', redirectUri);
+  return redirectUri;
 }
 
 // Store pending OAuth states
