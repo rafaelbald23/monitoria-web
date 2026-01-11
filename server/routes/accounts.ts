@@ -59,6 +59,16 @@ router.put('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { name, clientId, clientSecret } = req.body;
+    const userId = req.user!.userId;
+
+    // Verificar se a conta pertence ao usuário
+    const account = await prisma.blingAccount.findFirst({
+      where: { id, userId },
+    });
+
+    if (!account) {
+      return res.status(404).json({ error: 'Conta não encontrada' });
+    }
 
     await prisma.blingAccount.update({
       where: { id },
@@ -80,6 +90,16 @@ router.put('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
 router.delete('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
+    const userId = req.user!.userId;
+
+    // Verificar se a conta pertence ao usuário
+    const account = await prisma.blingAccount.findFirst({
+      where: { id, userId },
+    });
+
+    if (!account) {
+      return res.status(404).json({ error: 'Conta não encontrada' });
+    }
 
     await prisma.blingAccount.delete({
       where: { id },
@@ -98,11 +118,15 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
     const { id } = req.params;
     const userId = req.user!.userId;
 
-    const account = await prisma.blingAccount.findUnique({
-      where: { id },
+    const account = await prisma.blingAccount.findFirst({
+      where: { id, userId },
     });
 
-    if (!account || !account.accessToken) {
+    if (!account) {
+      return res.json({ success: false, error: 'Conta não encontrada' });
+    }
+
+    if (!account.accessToken) {
       return res.json({ success: false, error: 'Conta não conectada. Clique em "Conectar Bling" primeiro.' });
     }
 

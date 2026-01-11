@@ -8,10 +8,23 @@ router.get('/stats', authMiddleware, async (req: AuthRequest, res: Response) => 
   try {
     const userId = req.user!.userId;
 
-    // Get products
+    // Get products that belong to this user (through account mappings)
     const products = await prisma.product.findMany({
-      where: { isActive: true },
-      include: { movements: true },
+      where: {
+        isActive: true,
+        mappings: {
+          some: {
+            account: {
+              userId: userId,
+            },
+          },
+        },
+      },
+      include: {
+        movements: {
+          where: { userId: userId },
+        },
+      },
     });
 
     // Get sales

@@ -9,11 +9,28 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.userId;
 
+    // Buscar produtos que pertencem ao usuário através do mapeamento com contas Bling
     const products = await prisma.product.findMany({
-      where: { isActive: true },
-      include: {
-        movements: true,
+      where: {
+        isActive: true,
         mappings: {
+          some: {
+            account: {
+              userId: userId,
+            },
+          },
+        },
+      },
+      include: {
+        movements: {
+          where: { userId: userId },
+        },
+        mappings: {
+          where: {
+            account: {
+              userId: userId,
+            },
+          },
           include: {
             account: {
               select: { name: true, userId: true },
@@ -109,6 +126,24 @@ router.put('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
     const { sku, name, price, stock } = req.body;
     const userId = req.user!.userId;
 
+    // Verificar se o produto pertence ao usuário
+    const product = await prisma.product.findFirst({
+      where: {
+        id,
+        mappings: {
+          some: {
+            account: {
+              userId: userId,
+            },
+          },
+        },
+      },
+    });
+
+    if (!product) {
+      return res.status(404).json({ error: 'Produto não encontrado' });
+    }
+
     await prisma.product.update({
       where: { id },
       data: {
@@ -121,7 +156,7 @@ router.put('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
     // Adjust stock if changed
     if (stock !== undefined) {
       const movements = await prisma.movement.findMany({
-        where: { productId: id },
+        where: { productId: id, userId },
       });
 
       const currentStock = movements.reduce((sum, m) => {
@@ -154,6 +189,25 @@ router.put('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
 router.delete('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
+    const userId = req.user!.userId;
+
+    // Verificar se o produto pertence ao usuário
+    const product = await prisma.product.findFirst({
+      where: {
+        id,
+        mappings: {
+          some: {
+            account: {
+              userId: userId,
+            },
+          },
+        },
+      },
+    });
+
+    if (!product) {
+      return res.status(404).json({ error: 'Produto não encontrado' });
+    }
 
     await prisma.product.update({
       where: { id },
