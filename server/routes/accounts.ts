@@ -205,6 +205,7 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
     for (const bp of allProducts) {
       try {
         const sku = bp.codigo || String(bp.id);
+        const ean = bp.gtin || bp.codigoBarras || null; // Código EAN/GTIN do Bling
         const stock = stockMap[bp.id] || bp.estoque?.saldoVirtualTotal || 0;
 
         const existing = await prisma.product.findUnique({
@@ -216,6 +217,7 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
           const product = await prisma.product.create({
             data: {
               sku,
+              ean,
               name: bp.nome,
               salePrice: bp.preco || 0,
               isActive: true,
@@ -253,6 +255,7 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
             where: { id: existing.id },
             data: {
               name: bp.nome,
+              ean: ean || existing.ean, // Atualiza EAN se existir
               salePrice: bp.preco || 0,
             },
           });

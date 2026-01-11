@@ -51,6 +51,7 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
       return {
         id: p.id,
         sku: p.sku,
+        ean: p.ean || '',
         name: p.name,
         price: p.salePrice || 0,
         stock,
@@ -64,6 +65,61 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Erro ao listar produtos:', error);
     res.status(500).json({ error: 'Erro ao listar produtos' });
+  }
+});
+
+// Search product by EAN or SKU (for barcode scanner)
+router.get('/search', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    const { code } = req.query;
+
+    if (!code) {
+      return res.status(400).json({ error: 'Código não informado' });
+    }
+
+    // Buscar por EAN ou SKU
+    const product = await prisma.product.findFirst({
+      where: {
+        isActive: true,
+        OR: [
+          { ean: code as string },
+          { sku: code as string },
+        ],
+        mappings: {
+          some: {
+            account: {
+              userId: userId,
+            },
+          },
+        },
+      },
+      include: {
+        movements: {
+          where: { userId: userId },
+        },
+      },
+    });
+
+    if (!product) {
+      return res.status(404).json({ error: 'Produto não encontrado' });
+    }
+
+    const stock = product.movements.reduce((sum, m) => {
+      return m.type === 'ENTRY' ? sum + m.quantity : sum - m.quantity;
+    }, 0);
+
+    res.json({
+      id: product.id,
+      sku: product.sku,
+      ean: product.ean || '',
+      name: product.name,
+      price: product.salePrice || 0,
+      stock,
+    });
+  } catch (error) {
+    console.error('Erro ao buscar produto:', error);
+    res.status(500).json({ error: 'Erro ao buscar produto' });
   }
 });
 

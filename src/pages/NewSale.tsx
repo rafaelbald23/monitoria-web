@@ -7,6 +7,7 @@ import { ScanIcon, TrashIcon, CheckIcon } from '../components/Icons';
 interface Product {
   id: string;
   sku: string;
+  ean: string;
   name: string;
   price: number;
   stock: number;
@@ -44,19 +45,32 @@ export default function NewSale() {
     }
   };
 
-  const handleBarcodeSubmit = (e: React.FormEvent) => {
+  const handleBarcodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!barcode.trim()) return;
 
-    const product = products.find(p => p.sku.toLowerCase() === barcode.toLowerCase() || p.sku.includes(barcode));
-
-    if (product) {
+    try {
+      // Primeiro tenta buscar pelo código (EAN ou SKU) via API
+      const product = await api.searchProduct(barcode.trim()) as Product;
       addToCart(product);
       setMessage({ type: 'success', text: `${product.name} adicionado!` });
       setTimeout(() => setMessage(null), 2000);
-    } else {
-      setMessage({ type: 'error', text: 'Produto não encontrado' });
-      setTimeout(() => setMessage(null), 3000);
+    } catch (error) {
+      // Se não encontrar via API, tenta buscar localmente
+      const localProduct = products.find(p => 
+        p.sku.toLowerCase() === barcode.toLowerCase() || 
+        p.ean === barcode ||
+        p.sku.includes(barcode)
+      );
+
+      if (localProduct) {
+        addToCart(localProduct);
+        setMessage({ type: 'success', text: `${localProduct.name} adicionado!` });
+        setTimeout(() => setMessage(null), 2000);
+      } else {
+        setMessage({ type: 'error', text: 'Produto não encontrado' });
+        setTimeout(() => setMessage(null), 3000);
+      }
     }
 
     setBarcode('');

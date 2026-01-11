@@ -9,6 +9,7 @@ import { exportToCSV, exportToPDF, generateTableHTML } from '../utils/export';
 interface Product {
   id: string;
   sku: string;
+  ean: string;
   name: string;
   price: number;
   stock: number;
@@ -165,6 +166,7 @@ export default function Products() {
 
   const productColumns = [
     { key: 'sku', label: 'SKU' },
+    { key: 'ean', label: 'EAN' },
     { key: 'name', label: 'Nome' },
     { key: 'price', label: 'Preço' },
     { key: 'stock', label: 'Estoque' },
@@ -256,6 +258,7 @@ export default function Products() {
                 <thead className={isDarkMode ? 'bg-white/5' : 'bg-gray-50'}>
                   <tr>
                     <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>SKU</th>
+                    <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>EAN</th>
                     <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Nome</th>
                     <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Preço</th>
                     <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Estoque</th>
@@ -267,6 +270,7 @@ export default function Products() {
                   {products.map((product) => (
                     <tr key={product.id} className={`transition-colors ${isDarkMode ? 'hover:bg-white/5' : 'hover:bg-gray-50'}`}>
                       <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-900'}`}>{product.sku}</td>
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{product.ean || '-'}</td>
                       <td className={`px-6 py-4 text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-900'}`}>
                         <div className="max-w-xs truncate" title={product.name}>{product.name}</div>
                       </td>

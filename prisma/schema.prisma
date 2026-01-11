@@ -64,6 +64,7 @@ model BlingAccount {
 model Product {
   id           String   @id @default(uuid())
   sku          String   @unique
+  ean          String?  // Código de barras EAN
   internalCode String?  @unique
   name         String
   description  String?

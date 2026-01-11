@@ -65,6 +65,7 @@ export const api = {
 
   // Products
   getProducts: () => request('/products'),
+  searchProduct: (code: string) => request(`/products/search?code=${encodeURIComponent(code)}`),
   createProduct: (data: any) =>
     request('/products', {
       method: 'POST',
