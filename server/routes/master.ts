@@ -66,12 +66,12 @@ router.get('/dashboard', authMiddleware, requireMaster, async (req: AuthRequest,
 router.get('/clients', authMiddleware, requireMaster, async (req: AuthRequest, res: Response) => {
   try {
     const clients = await prisma.user.findMany({
-      where: { isMaster: false },
+      where: { isMaster: false, isOwner: true },
       select: {
         id: true, username: true, name: true, email: true, phone: true, companyName: true,
         isActive: true, subscriptionStatus: true, subscriptionPlan: true,
         subscriptionStart: true, subscriptionEnd: true, lastPaymentDate: true,
-        lastLoginAt: true, createdAt: true, monthlyValue: true, notes: true,
+        lastLoginAt: true, createdAt: true, monthlyValue: true, notes: true, maxEmployees: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -85,7 +85,7 @@ router.get('/clients', authMiddleware, requireMaster, async (req: AuthRequest, r
 // Criar novo cliente
 router.post('/clients', authMiddleware, requireMaster, async (req: AuthRequest, res: Response) => {
   try {
-    const { username, password, name, email, phone, companyName, subscriptionPlan, subscriptionEnd, monthlyValue, notes } = req.body;
+    const { username, password, name, email, phone, companyName, subscriptionPlan, subscriptionEnd, monthlyValue, notes, maxEmployees } = req.body;
 
     const existing = await prisma.user.findFirst({
       where: { OR: [{ username }, { email }] },
@@ -99,13 +99,14 @@ router.post('/clients', authMiddleware, requireMaster, async (req: AuthRequest, 
     const client = await prisma.user.create({
       data: {
         username, password: hashedPassword, name, email, phone, companyName,
-        role: 'admin', isActive: true, isMaster: false,
+        role: 'admin', isActive: true, isMaster: false, isOwner: true,
         subscriptionStatus: 'active', subscriptionPlan: subscriptionPlan || 'basic',
         subscriptionStart: new Date(),
         subscriptionEnd: subscriptionEnd ? new Date(subscriptionEnd) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         lastPaymentDate: new Date(),
         monthlyValue: monthlyValue || null,
         notes: notes || null,
+        maxEmployees: maxEmployees || 3,
       },
     });
 
@@ -120,7 +121,7 @@ router.post('/clients', authMiddleware, requireMaster, async (req: AuthRequest, 
 router.put('/clients/:id', authMiddleware, requireMaster, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, email, phone, companyName, subscriptionPlan, subscriptionEnd, subscriptionStatus, isActive, password, monthlyValue, notes } = req.body;
+    const { name, email, phone, companyName, subscriptionPlan, subscriptionEnd, subscriptionStatus, isActive, password, monthlyValue, notes, maxEmployees } = req.body;
 
     const updateData: any = { name, email, phone, companyName, subscriptionPlan, subscriptionStatus, isActive, notes };
     
@@ -132,6 +133,9 @@ router.put('/clients/:id', authMiddleware, requireMaster, async (req: AuthReques
     }
     if (monthlyValue !== undefined) {
       updateData.monthlyValue = monthlyValue ? parseFloat(monthlyValue) : null;
+    }
+    if (maxEmployees !== undefined) {
+      updateData.maxEmployees = parseInt(maxEmployees) || 3;
     }
 
     await prisma.user.update({ where: { id }, data: updateData });
