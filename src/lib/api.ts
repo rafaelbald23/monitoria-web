@@ -117,6 +117,16 @@ export const api = {
       body: JSON.stringify({ accountId }),
     }),
 
+  // Bling Orders
+  getBlingOrders: (accountId: string) =>
+    request(`/bling/orders/${accountId}`),
+  getVerifiedOrders: (accountId: string) =>
+    request(`/bling/orders/verified/${accountId}`),
+  processOrder: (orderId: string) =>
+    request(`/bling/orders/${orderId}/process`, {
+      method: 'POST',
+    }),
+
   // Users
   getUsers: () => request('/users'),
   createUser: (data: any) =>

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import Layout from '../components/Layout';
 import { useTheme } from '../hooks/useTheme';
 import api from '../lib/api';
-import { ScanIcon, TrashIcon, CheckIcon } from '../components/Icons';
+import { ScanIcon, TrashIcon, CheckIcon, RefreshIcon, AlertIcon } from '../components/Icons';
 
 interface Product {
   id: string;
@@ -19,18 +19,45 @@ interface CartItem {
   subtotal: number;
 }
 
+interface BlingOrder {
+  id: string;
+  orderNumber: string;
+  status: string;
+  customerName: string;
+  totalAmount: number;
+  items: any[];
+  isProcessed: boolean;
+}
+
+interface Account {
+  id: string;
+  name: string;
+  isActive: boolean;
+}
+
 export default function NewSale() {
   const { isDarkMode } = useTheme();
   const [barcode, setBarcode] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [verifiedOrders, setVerifiedOrders] = useState<BlingOrder[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingOrders, setLoadingOrders] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<BlingOrder | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadProducts();
+    loadAccounts();
   }, []);
+
+  useEffect(() => {
+    if (accounts.length > 0) {
+      loadVerifiedOrders();
+    }
+  }, [accounts]);
 
   useEffect(() => {
     barcodeInputRef.current?.focus();
@@ -45,18 +72,61 @@ export default function NewSale() {
     }
   };
 
+  const loadAccounts = async () => {
+    try {
+      const result = await api.getAccounts() as Account[];
+      setAccounts(result.filter(acc => acc.isActive));
+    } catch (error) {
+      console.error('Erro ao carregar contas:', error);
+    }
+  };
+
+  const loadVerifiedOrders = async () => {
+    setLoadingOrders(true);
+    try {
+      let allOrders: BlingOrder[] = [];
+      for (const account of accounts) {
+        const result = await api.getVerifiedOrders(account.id) as any;
+        if (result.success && result.orders) {
+          allOrders = [...allOrders, ...result.orders];
+        }
+      }
+      setVerifiedOrders(allOrders);
+    } catch (error) {
+      console.error('Erro ao carregar pedidos:', error);
+    } finally {
+      setLoadingOrders(false);
+    }
+  };
+
+  const handleSyncOrders = async () => {
+    setLoadingOrders(true);
+    try {
+      for (const account of accounts) {
+        await api.getBlingOrders(account.id);
+      }
+      await loadVerifiedOrders();
+      setMessage({ type: 'success', text: 'Pedidos sincronizados!' });
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error) {
+      console.error('Erro ao sincronizar pedidos:', error);
+      setMessage({ type: 'error', text: 'Erro ao sincronizar pedidos' });
+      setTimeout(() => setMessage(null), 3000);
+    } finally {
+      setLoadingOrders(false);
+    }
+  };
+
   const handleBarcodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!barcode.trim()) return;
 
     try {
-      // Primeiro tenta buscar pelo código (EAN ou SKU) via API
       const product = await api.searchProduct(barcode.trim()) as Product;
       addToCart(product);
       setMessage({ type: 'success', text: `${product.name} adicionado!` });
       setTimeout(() => setMessage(null), 2000);
     } catch (error) {
-      // Se não encontrar via API, tenta buscar localmente
       const localProduct = products.find(p => 
         p.sku.toLowerCase() === barcode.toLowerCase() || 
         p.ean === barcode ||
@@ -77,20 +147,37 @@ export default function NewSale() {
     barcodeInputRef.current?.focus();
   };
 
-  const addToCart = (product: Product) => {
+  const addToCart = (product: Product, quantity: number = 1) => {
     setCart(prevCart => {
       const existingItem = prevCart.find(item => item.product.id === product.id);
       
       if (existingItem) {
         return prevCart.map(item =>
           item.product.id === product.id
-            ? { ...item, quantity: item.quantity + 1, subtotal: (item.quantity + 1) * item.product.price }
+            ? { ...item, quantity: item.quantity + quantity, subtotal: (item.quantity + quantity) * item.product.price }
             : item
         );
       }
       
-      return [...prevCart, { product, quantity: 1, subtotal: product.price }];
+      return [...prevCart, { product, quantity, subtotal: product.price * quantity }];
     });
+  };
+
+  const loadOrderToCart = (order: BlingOrder) => {
+    setSelectedOrder(order);
+    setCart([]);
+    
+    for (const item of order.items) {
+      const sku = item.codigo || item.produto?.codigo;
+      const product = products.find(p => p.sku === sku);
+      
+      if (product) {
+        addToCart(product, item.quantidade || 1);
+      }
+    }
+    
+    setMessage({ type: 'success', text: `Pedido #${order.orderNumber} carregado no carrinho!` });
+    setTimeout(() => setMessage(null), 3000);
   };
 
   const removeFromCart = (productId: string) => {
@@ -132,8 +219,16 @@ export default function NewSale() {
         totalAmount: total,
       });
 
-      setMessage({ type: 'success', text: 'Venda registrada com sucesso!' });
+      // Se veio de um pedido do Bling, marcar como processado
+      if (selectedOrder) {
+        await api.processOrder(selectedOrder.id);
+        setVerifiedOrders(prev => prev.filter(o => o.id !== selectedOrder.id));
+        setSelectedOrder(null);
+      }
+
+      setMessage({ type: 'success', text: 'Venda registrada e baixa no estoque realizada!' });
       setCart([]);
+      await loadProducts();
       setTimeout(() => setMessage(null), 3000);
     } catch (error) {
       console.error('Erro ao finalizar venda:', error);
@@ -149,9 +244,10 @@ export default function NewSale() {
         <h1 className={`text-2xl font-bold mb-6 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Nova Venda</h1>
 
         <div className="flex gap-6 flex-1">
-          {/* Scanner Area */}
-          <div className="flex-1">
-            <form onSubmit={handleBarcodeSubmit} className="mb-6">
+          {/* Left Column */}
+          <div className="flex-1 flex flex-col gap-4">
+            {/* Scanner */}
+            <form onSubmit={handleBarcodeSubmit}>
               <div className={`flex items-center gap-3 p-4 rounded-2xl border ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-200 shadow-sm'}`}>
                 <ScanIcon size={24} className={isDarkMode ? 'text-cyan-400' : 'text-cyan-600'} />
                 <input
@@ -159,7 +255,7 @@ export default function NewSale() {
                   type="text"
                   value={barcode}
                   onChange={(e) => setBarcode(e.target.value)}
-                  placeholder="Bipe o código de barras ou digite o SKU..."
+                  placeholder="Bipe o código de barras (EAN) ou digite o SKU..."
                   className={`flex-1 bg-transparent outline-none text-lg ${isDarkMode ? 'text-white placeholder-gray-500' : 'text-gray-900 placeholder-gray-400'}`}
                   autoFocus
                 />
@@ -168,12 +264,68 @@ export default function NewSale() {
             </form>
 
             {message && (
-              <div className={`mb-4 p-4 rounded-xl ${message.type === 'success' ? isDarkMode ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-700' : isDarkMode ? 'bg-red-500/20 text-red-400' : 'bg-red-100 text-red-700'}`}>
+              <div className={`p-4 rounded-xl flex items-center gap-2 ${message.type === 'success' ? isDarkMode ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-700' : isDarkMode ? 'bg-red-500/20 text-red-400' : 'bg-red-100 text-red-700'}`}>
+                <AlertIcon size={18} />
                 {message.text}
               </div>
             )}
 
+            {/* Pedidos Verificados do Bling */}
             <div className={`rounded-2xl border p-4 ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-200 shadow-sm'}`}>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  📦 Pedidos Verificados (Bling)
+                </h3>
+                <button
+                  onClick={handleSyncOrders}
+                  disabled={loadingOrders}
+                  className={`flex items-center gap-1 px-3 py-1 rounded-lg text-sm ${isDarkMode ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}
+                >
+                  <RefreshIcon size={14} className={loadingOrders ? 'animate-spin' : ''} />
+                  Sincronizar
+                </button>
+              </div>
+              
+              {verifiedOrders.length === 0 ? (
+                <p className={`text-sm ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                  Nenhum pedido verificado pendente
+                </p>
+              ) : (
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {verifiedOrders.map(order => (
+                    <button
+                      key={order.id}
+                      onClick={() => loadOrderToCart(order)}
+                      className={`w-full p-3 rounded-xl text-left transition-colors ${
+                        selectedOrder?.id === order.id
+                          ? isDarkMode ? 'bg-purple-500/30 border border-purple-500' : 'bg-purple-100 border border-purple-500'
+                          : isDarkMode ? 'bg-white/5 hover:bg-white/10' : 'bg-gray-50 hover:bg-gray-100'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                            Pedido #{order.orderNumber}
+                          </p>
+                          <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {order.customerName || 'Cliente não informado'}
+                          </p>
+                        </div>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${isDarkMode ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-700'}`}>
+                          Verificado
+                        </span>
+                      </div>
+                      <p className={`text-sm font-semibold mt-1 ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>
+                        R$ {order.totalAmount.toFixed(2)}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Produtos */}
+            <div className={`rounded-2xl border p-4 flex-1 ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-200 shadow-sm'}`}>
               <h3 className={`font-semibold mb-3 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Produtos Disponíveis</h3>
               <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
                 {products.slice(0, 20).map(product => (
@@ -183,7 +335,9 @@ export default function NewSale() {
                     className={`p-3 rounded-xl text-left transition-colors ${isDarkMode ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-gray-50 hover:bg-gray-100 text-gray-900'}`}
                   >
                     <p className="font-medium text-sm truncate">{product.name}</p>
-                    <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>SKU: {product.sku}</p>
+                    <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {product.ean ? `EAN: ${product.ean}` : `SKU: ${product.sku}`}
+                    </p>
                     <p className={`text-sm font-semibold ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>R$ {product.price.toFixed(2)}</p>
                   </button>
                 ))}
@@ -194,7 +348,14 @@ export default function NewSale() {
           {/* Cart */}
           <div className={`w-96 rounded-2xl border flex flex-col ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-200 shadow-sm'}`}>
             <div className={`p-4 border-b ${isDarkMode ? 'border-white/10' : 'border-gray-200'}`}>
-              <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Carrinho ({cart.length} itens)</h2>
+              <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                Carrinho ({cart.length} itens)
+                {selectedOrder && (
+                  <span className={`ml-2 text-sm font-normal ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`}>
+                    - Pedido #{selectedOrder.orderNumber}
+                  </span>
+                )}
+              </h2>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -236,7 +397,7 @@ export default function NewSale() {
                 className="w-full py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 <CheckIcon size={20} />
-                {loading ? 'Processando...' : 'Finalizar Venda'}
+                {loading ? 'Processando...' : selectedOrder ? 'Confirmar Baixa no Estoque' : 'Finalizar Venda'}
               </button>
             </div>
           </div>

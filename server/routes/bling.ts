@@ -206,4 +206,234 @@ router.get('/check-auth/:accountId', authMiddleware, async (req: AuthRequest, re
   }
 });
 
+const BLING_API_URL = 'https://www.bling.com.br/Api/v3';
+
+// Função para refresh do token
+async function refreshAccessToken(account: any): Promise<string> {
+  const credentials = Buffer.from(`${account.clientId}:${account.clientSecret}`).toString('base64');
+
+  const response = await axios.post(
+    BLING_TOKEN_URL,
+    new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: account.refreshToken,
+    }).toString(),
+    {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: `Basic ${credentials}`,
+      },
+    }
+  );
+
+  const tokens = response.data;
+  const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);
+
+  await prisma.blingAccount.update({
+    where: { id: account.id },
+    data: {
+      accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token,
+      tokenExpiresAt: expiresAt,
+    },
+  });
+
+  return tokens.access_token;
+}
+
+// Buscar pedidos de venda do Bling
+router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { accountId } = req.params;
+    const userId = req.user!.userId;
+
+    const account = await prisma.blingAccount.findFirst({
+      where: { id: accountId, userId },
+    });
+
+    if (!account || !account.accessToken) {
+      return res.json({ success: false, error: 'Conta não conectada' });
+    }
+
+    // Check if token expired and refresh if needed
+    let accessToken = account.accessToken;
+    if (account.tokenExpiresAt && new Date(account.tokenExpiresAt) < new Date()) {
+      accessToken = await refreshAccessToken(account);
+    }
+
+    // Buscar pedidos de venda do Bling
+    let allOrders: any[] = [];
+    let page = 1;
+    let hasMore = true;
+
+    while (hasMore && page <= 10) {
+      const response = await axios.get(`${BLING_API_URL}/pedidos/vendas?limite=100&pagina=${page}`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/json',
+        },
+      });
+
+      const orders = response.data?.data || [];
+      allOrders = allOrders.concat(orders);
+
+      if (orders.length < 100) {
+        hasMore = false;
+      } else {
+        page++;
+      }
+    }
+
+    // Mapear status do Bling
+    const statusMap: Record<number, string> = {
+      0: 'Em Digitação',
+      1: 'Em Andamento',
+      2: 'Atendido',
+      3: 'Cancelado',
+      4: 'Verificado',
+      5: 'Reenvios',
+      6: 'Vendas Agendadas',
+    };
+
+    // Salvar/atualizar pedidos no banco
+    for (const order of allOrders) {
+      const status = statusMap[order.situacao?.id] || order.situacao?.valor || 'Desconhecido';
+      
+      await prisma.blingOrder.upsert({
+        where: {
+          blingOrderId_accountId: {
+            blingOrderId: String(order.id),
+            accountId: accountId,
+          },
+        },
+        update: {
+          status,
+          customerName: order.contato?.nome || null,
+          totalAmount: order.total || 0,
+          items: JSON.stringify(order.itens || []),
+          updatedAt: new Date(),
+        },
+        create: {
+          blingOrderId: String(order.id),
+          orderNumber: order.numero || String(order.id),
+          accountId,
+          userId,
+          status,
+          customerName: order.contato?.nome || null,
+          totalAmount: order.total || 0,
+          items: JSON.stringify(order.itens || []),
+          blingCreatedAt: order.data ? new Date(order.data) : null,
+        },
+      });
+    }
+
+    // Retornar pedidos do banco
+    const savedOrders = await prisma.blingOrder.findMany({
+      where: { accountId, userId },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+
+    res.json({
+      success: true,
+      orders: savedOrders.map(o => ({
+        ...o,
+        items: JSON.parse(o.items),
+      })),
+    });
+  } catch (error: any) {
+    console.error('Erro ao buscar pedidos:', error.response?.data || error.message);
+    res.json({ success: false, error: error.response?.data?.error?.message || 'Erro ao buscar pedidos' });
+  }
+});
+
+// Buscar pedidos verificados (prontos para dar baixa)
+router.get('/orders/verified/:accountId', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { accountId } = req.params;
+    const userId = req.user!.userId;
+
+    const orders = await prisma.blingOrder.findMany({
+      where: {
+        accountId,
+        userId,
+        status: 'Verificado',
+        isProcessed: false,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json({
+      success: true,
+      orders: orders.map(o => ({
+        ...o,
+        items: JSON.parse(o.items),
+      })),
+    });
+  } catch (error: any) {
+    console.error('Erro ao buscar pedidos verificados:', error);
+    res.json({ success: false, error: 'Erro ao buscar pedidos verificados' });
+  }
+});
+
+// Processar pedido (dar baixa no estoque)
+router.post('/orders/:orderId/process', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { orderId } = req.params;
+    const userId = req.user!.userId;
+
+    const order = await prisma.blingOrder.findFirst({
+      where: { id: orderId, userId },
+    });
+
+    if (!order) {
+      return res.json({ success: false, error: 'Pedido não encontrado' });
+    }
+
+    if (order.isProcessed) {
+      return res.json({ success: false, error: 'Pedido já foi processado' });
+    }
+
+    const items = JSON.parse(order.items);
+
+    // Dar baixa no estoque para cada item
+    for (const item of items) {
+      const sku = item.codigo || item.produto?.codigo;
+      if (!sku) continue;
+
+      const product = await prisma.product.findUnique({
+        where: { sku },
+      });
+
+      if (product) {
+        // Criar movimento de saída
+        await prisma.movement.create({
+          data: {
+            type: 'EXIT',
+            productId: product.id,
+            quantity: item.quantidade || 1,
+            reason: `Pedido Bling #${order.orderNumber}`,
+            userId,
+            syncStatus: 'synced',
+          },
+        });
+      }
+    }
+
+    // Marcar pedido como processado
+    await prisma.blingOrder.update({
+      where: { id: orderId },
+      data: {
+        isProcessed: true,
+        processedAt: new Date(),
+      },
+    });
+
+    res.json({ success: true, message: 'Baixa no estoque realizada com sucesso!' });
+  } catch (error: any) {
+    console.error('Erro ao processar pedido:', error);
+    res.json({ success: false, error: 'Erro ao processar pedido' });
+  }
+});
+
 export default router;

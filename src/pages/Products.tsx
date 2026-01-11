@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import { useTheme } from '../hooks/useTheme';
 import api from '../lib/api';
-import { PlusIcon, RefreshIcon, EditIcon, TrashIcon, AlertIcon } from '../components/Icons';
+import { PlusIcon, RefreshIcon, EditIcon, TrashIcon, AlertIcon, LinkIcon } from '../components/Icons';
 import { ExportButton } from '../components/ExportButton';
 import { exportToCSV, exportToPDF, generateTableHTML } from '../utils/export';
 
@@ -21,6 +21,7 @@ interface Account {
   id: string;
   name: string;
   isActive: boolean;
+  syncStatus?: string;
 }
 
 export default function Products() {
@@ -28,6 +29,7 @@ export default function Products() {
   const [products, setProducts] = useState<Product[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -64,6 +66,35 @@ export default function Products() {
       setAccounts(result.filter((acc: Account) => acc.isActive));
     } catch (error) {
       console.error('Erro ao carregar contas:', error);
+    }
+  };
+
+  const handleSyncBling = async () => {
+    if (accounts.length === 0) {
+      showMessage('error', 'Nenhuma conta Bling configurada');
+      return;
+    }
+
+    setSyncing(true);
+    try {
+      let totalImported = 0;
+      let totalUpdated = 0;
+
+      for (const account of accounts) {
+        const result = await api.syncAccount(account.id) as any;
+        if (result.success) {
+          totalImported += result.imported || 0;
+          totalUpdated += result.updated || 0;
+        }
+      }
+
+      showMessage('success', `Sincronização concluída! ${totalImported} novos, ${totalUpdated} atualizados`);
+      await loadProducts();
+    } catch (error) {
+      console.error('Erro ao sincronizar:', error);
+      showMessage('error', 'Erro ao sincronizar com o Bling');
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -197,6 +228,19 @@ export default function Products() {
           </div>
           <div className="flex gap-3">
             <ExportButton onExportCSV={handleExportCSV} onExportPDF={handleExportPDF} />
+            <button
+              onClick={handleSyncBling}
+              disabled={syncing || accounts.length === 0}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-colors ${
+                isDarkMode 
+                  ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' 
+                  : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+              } disabled:opacity-50`}
+              title="Sincronizar produtos com o Bling"
+            >
+              <LinkIcon size={18} className={syncing ? 'animate-spin' : ''} />
+              {syncing ? 'Sincronizando...' : 'Sincronizar Bling'}
+            </button>
             <button
               onClick={loadProducts}
               disabled={loading}
