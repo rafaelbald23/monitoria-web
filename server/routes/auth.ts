@@ -24,12 +24,22 @@ router.post('/login', async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, error: 'Usuário inativo. Entre em contato com o suporte.' });
     }
 
-    // Verificar assinatura (exceto para master)
-    if (!user.isMaster && user.subscriptionStatus === 'suspended') {
+    // Se for funcionário, verificar se o dono está ativo
+    if (user.ownerId) {
+      const owner = await prisma.user.findUnique({
+        where: { id: user.ownerId },
+      });
+      if (!owner || !owner.isActive || owner.subscriptionStatus === 'suspended') {
+        return res.status(401).json({ success: false, error: 'Conta da empresa suspensa. Entre em contato com o administrador.' });
+      }
+    }
+
+    // Verificar assinatura (exceto para master e funcionários)
+    if (!user.isMaster && !user.ownerId && user.subscriptionStatus === 'suspended') {
       return res.status(401).json({ success: false, error: 'Assinatura suspensa. Entre em contato para regularizar.' });
     }
 
-    if (!user.isMaster && user.subscriptionEnd && new Date(user.subscriptionEnd) < new Date()) {
+    if (!user.isMaster && !user.ownerId && user.subscriptionEnd && new Date(user.subscriptionEnd) < new Date()) {
       // Suspender automaticamente se venceu
       await prisma.user.update({
         where: { id: user.id },
@@ -48,6 +58,22 @@ router.post('/login', async (req: Request, res: Response) => {
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
     });
+
+    // Determinar permissões
+    let permissions: string[] = [];
+    if (user.isMaster) {
+      permissions = ['masterPanel']; // Master só acessa o painel master
+    } else if (user.isOwner || !user.ownerId) {
+      // Dono da conta tem acesso a tudo
+      permissions = ['dashboard', 'products', 'sales', 'newSale', 'accounts', 'reports', 'settings', 'users'];
+    } else if (user.permissions) {
+      // Funcionário tem permissões específicas
+      try {
+        permissions = JSON.parse(user.permissions);
+      } catch {
+        permissions = [];
+      }
+    }
 
     const token = jwt.sign(
       { userId: user.id, username: user.username, role: user.role },
@@ -73,6 +99,9 @@ router.post('/login', async (req: Request, res: Response) => {
           email: user.email,
           role: user.role,
           isMaster: user.isMaster,
+          isOwner: user.isOwner || (!user.ownerId && !user.isMaster),
+          ownerId: user.ownerId,
+          permissions,
         },
       },
     });

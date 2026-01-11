@@ -14,6 +14,7 @@ import {
   MoonIcon,
   PlusIcon,
   CrownIcon,
+  UsersIcon,
 } from './Icons';
 
 interface LayoutProps {
@@ -24,30 +25,38 @@ interface MenuItem {
   path: string;
   label: string;
   icon: React.ReactNode;
+  permission?: string;
   masterOnly?: boolean;
 }
 
 export default function Layout({ children }: LayoutProps) {
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission } = useAuth();
   const location = useLocation();
   const { isDarkMode, toggleTheme } = useTheme();
 
   const isActive = (path: string) => location.pathname === path;
   const isMaster = user?.isMaster === true;
+  const isOwner = user?.isOwner === true;
 
   const menuItems: MenuItem[] = [
-    { path: '/dashboard', label: 'Dashboard', icon: <DashboardIcon size={20} /> },
-    { path: '/products', label: 'Produtos', icon: <PackageIcon size={20} /> },
-    { path: '/new-sale', label: 'Nova Venda', icon: <PlusIcon size={20} /> },
-    { path: '/sales', label: 'Vendas', icon: <ShoppingCartIcon size={20} /> },
-    { path: '/accounts', label: 'Contas Bling', icon: <LinkIcon size={20} /> },
-    { path: '/reports', label: 'Relatórios', icon: <ChartIcon size={20} /> },
-    { path: '/settings', label: 'Configurações', icon: <SettingsIcon size={20} /> },
+    { path: '/dashboard', label: 'Dashboard', icon: <DashboardIcon size={20} />, permission: 'dashboard' },
+    { path: '/products', label: 'Produtos', icon: <PackageIcon size={20} />, permission: 'products' },
+    { path: '/new-sale', label: 'Nova Venda', icon: <PlusIcon size={20} />, permission: 'newSale' },
+    { path: '/sales', label: 'Vendas', icon: <ShoppingCartIcon size={20} />, permission: 'sales' },
+    { path: '/accounts', label: 'Contas Bling', icon: <LinkIcon size={20} />, permission: 'accounts' },
+    { path: '/reports', label: 'Relatórios', icon: <ChartIcon size={20} />, permission: 'reports' },
+    { path: '/employees', label: 'Funcionários', icon: <UsersIcon size={20} />, permission: 'users' },
+    { path: '/settings', label: 'Configurações', icon: <SettingsIcon size={20} />, permission: 'settings' },
     { path: '/master', label: 'Painel Master', icon: <CrownIcon size={20} />, masterOnly: true },
   ];
 
-  // Filtra itens do menu baseado no role do usuário
-  const visibleMenuItems = menuItems.filter(item => !item.masterOnly || isMaster);
+  // Filtra itens do menu baseado nas permissões do usuário
+  const visibleMenuItems = menuItems.filter(item => {
+    if (item.masterOnly) return isMaster;
+    if (isMaster) return false; // Master só vê o painel master
+    if (isOwner) return !item.masterOnly; // Dono vê tudo exceto master
+    return item.permission ? hasPermission(item.permission) : true;
+  });
 
   return (
     <div className={`flex h-screen transition-colors duration-300 ${

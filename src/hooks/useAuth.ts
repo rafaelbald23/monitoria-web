@@ -10,6 +10,9 @@ interface User {
   role: string;
   isActive: boolean;
   isMaster?: boolean;
+  isOwner?: boolean;
+  ownerId?: string;
+  permissions?: string[];
 }
 
 interface AuthState {
@@ -23,6 +26,7 @@ interface AuthState {
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
   clearError: () => void;
+  hasPermission: (permission: string) => boolean;
 }
 
 export const useAuth = create<AuthState>()(
@@ -80,6 +84,14 @@ export const useAuth = create<AuthState>()(
 
       clearError: () => {
         set({ error: null });
+      },
+
+      hasPermission: (permission: string) => {
+        const { user } = get();
+        if (!user) return false;
+        if (user.isMaster) return permission === 'masterPanel';
+        if (user.isOwner) return true; // Dono tem acesso a tudo
+        return user.permissions?.includes(permission) || false;
       },
     }),
     {

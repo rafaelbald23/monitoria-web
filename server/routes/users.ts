@@ -1,14 +1,26 @@
 import { Router, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma.js';
-import { authMiddleware, AuthRequest, requireRole } from '../middleware/auth.js';
+import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 
 const router = Router();
 
-// List users (admin only)
-router.get('/', authMiddleware, requireRole('admin'), async (req: AuthRequest, res: Response) => {
+// List employees (for account owners)
+router.get('/employees', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
-    const users = await prisma.user.findMany({
+    const userId = req.user!.userId;
+
+    // Verificar se é dono da conta
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!currentUser || (!currentUser.isOwner && currentUser.ownerId)) {
+      return res.status(403).json({ error: 'Apenas o dono da conta pode gerenciar funcionários' });
+    }
+
+    const employees = await prisma.user.findMany({
+      where: { ownerId: userId },
       select: {
         id: true,
         username: true,
@@ -16,21 +28,36 @@ router.get('/', authMiddleware, requireRole('admin'), async (req: AuthRequest, r
         email: true,
         role: true,
         isActive: true,
+        permissions: true,
         createdAt: true,
       },
       orderBy: { createdAt: 'desc' },
     });
-    res.json(users);
+
+    res.json(employees.map(e => ({
+      ...e,
+      permissions: e.permissions ? JSON.parse(e.permissions) : [],
+    })));
   } catch (error) {
-    console.error('Erro ao listar usuários:', error);
-    res.status(500).json({ error: 'Erro ao listar usuários' });
+    console.error('Erro ao listar funcionários:', error);
+    res.status(500).json({ error: 'Erro ao listar funcionários' });
   }
 });
 
-// Create user (admin only)
-router.post('/', authMiddleware, requireRole('admin'), async (req: AuthRequest, res: Response) => {
+// Create employee
+router.post('/employees', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
-    const { username, password, name, email, role } = req.body;
+    const userId = req.user!.userId;
+    const { username, password, name, email, permissions } = req.body;
+
+    // Verificar se é dono da conta
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!currentUser || (!currentUser.isOwner && currentUser.ownerId)) {
+      return res.status(403).json({ error: 'Apenas o dono da conta pode criar funcionários' });
+    }
 
     // Check if username exists
     const existing = await prisma.user.findUnique({ where: { username } });
@@ -46,31 +73,54 @@ router.post('/', authMiddleware, requireRole('admin'), async (req: AuthRequest, 
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    const user = await prisma.user.create({
+    const employee = await prisma.user.create({
       data: {
         username,
         password: hashedPassword,
         name,
         email,
-        role: role || 'seller',
+        role: 'seller',
         isActive: true,
+        ownerId: userId,
+        isOwner: false,
+        permissions: JSON.stringify(permissions || []),
       },
     });
 
-    res.json({ id: user.id, username: user.username, name: user.name });
+    res.json({ 
+      id: employee.id, 
+      username: employee.username, 
+      name: employee.name,
+      permissions: permissions || [],
+    });
   } catch (error) {
-    console.error('Erro ao criar usuário:', error);
-    res.status(500).json({ error: 'Erro ao criar usuário' });
+    console.error('Erro ao criar funcionário:', error);
+    res.status(500).json({ error: 'Erro ao criar funcionário' });
   }
 });
 
-// Update user (admin only)
-router.put('/:id', authMiddleware, requireRole('admin'), async (req: AuthRequest, res: Response) => {
+// Update employee
+router.put('/employees/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.user!.userId;
     const { id } = req.params;
-    const { name, email, role, isActive, password } = req.body;
+    const { name, email, isActive, password, permissions } = req.body;
 
-    const updateData: any = { name, email, role, isActive };
+    // Verificar se o funcionário pertence ao usuário
+    const employee = await prisma.user.findFirst({
+      where: { id, ownerId: userId },
+    });
+
+    if (!employee) {
+      return res.status(404).json({ error: 'Funcionário não encontrado' });
+    }
+
+    const updateData: any = { 
+      name, 
+      email, 
+      isActive,
+      permissions: JSON.stringify(permissions || []),
+    };
     
     if (password) {
       updateData.password = await bcrypt.hash(password, 12);
@@ -83,26 +133,31 @@ router.put('/:id', authMiddleware, requireRole('admin'), async (req: AuthRequest
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Erro ao atualizar usuário:', error);
-    res.status(500).json({ error: 'Erro ao atualizar usuário' });
+    console.error('Erro ao atualizar funcionário:', error);
+    res.status(500).json({ error: 'Erro ao atualizar funcionário' });
   }
 });
 
-// Delete user (admin only)
-router.delete('/:id', authMiddleware, requireRole('admin'), async (req: AuthRequest, res: Response) => {
+// Delete employee
+router.delete('/employees/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.user!.userId;
     const { id } = req.params;
 
-    // Don't allow deleting yourself
-    if (id === req.user!.userId) {
-      return res.status(400).json({ error: 'Você não pode excluir sua própria conta' });
+    // Verificar se o funcionário pertence ao usuário
+    const employee = await prisma.user.findFirst({
+      where: { id, ownerId: userId },
+    });
+
+    if (!employee) {
+      return res.status(404).json({ error: 'Funcionário não encontrado' });
     }
 
     await prisma.user.delete({ where: { id } });
     res.json({ success: true });
   } catch (error) {
-    console.error('Erro ao excluir usuário:', error);
-    res.status(500).json({ error: 'Erro ao excluir usuário' });
+    console.error('Erro ao excluir funcionário:', error);
+    res.status(500).json({ error: 'Erro ao excluir funcionário' });
   }
 });
 
