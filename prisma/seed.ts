@@ -6,13 +6,6 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Verificando configuração inicial...');
 
-  // Limpar produtos de exemplo antigos (executa apenas uma vez)
-  const exampleProducts = ['PROD001', 'PROD002', 'PROD003'];
-  await prisma.product.deleteMany({
-    where: { sku: { in: exampleProducts } },
-  });
-  console.log('Produtos de exemplo removidos');
-
   // Verificar se usuário master já existe
   const existingMaster = await prisma.user.findFirst({
     where: { isMaster: true },
