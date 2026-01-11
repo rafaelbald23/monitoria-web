@@ -241,7 +241,21 @@ export default function NewSale() {
   return (
     <Layout>
       <div className="p-6 h-full flex flex-col">
-        <h1 className={`text-2xl font-bold mb-6 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Nova Venda</h1>
+        <div className="flex justify-between items-center mb-6">
+          <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Nova Venda</h1>
+          <button
+            onClick={handleSyncOrders}
+            disabled={loadingOrders}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-colors ${
+              isDarkMode 
+                ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' 
+                : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+            } disabled:opacity-50`}
+          >
+            <RefreshIcon size={18} className={loadingOrders ? 'animate-spin' : ''} />
+            {loadingOrders ? 'Sincronizando...' : 'Atualizar Vendas Bling'}
+          </button>
+        </div>
 
         <div className="flex gap-6 flex-1">
           {/* Left Column */}
