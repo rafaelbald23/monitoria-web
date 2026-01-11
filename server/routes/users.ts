@@ -5,58 +5,129 @@ import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 
 const router = Router();
 
-// List employees (for account owners)
-router.get('/employees', authMiddleware, async (req: AuthRequest, res: Response) => {
+// Get current user info with employee limit
+router.get('/me', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.userId;
 
-    // Verificar se é dono da conta
-    const currentUser = await prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { id: userId },
     });
 
-    if (!currentUser || (!currentUser.isOwner && currentUser.ownerId)) {
-      return res.status(403).json({ error: 'Apenas o dono da conta pode gerenciar funcionários' });
+    if (!user) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
     }
 
-    const employees = await prisma.user.findMany({
+    // Contar funcionários
+    const employeeCount = await prisma.user.count({
       where: { ownerId: userId },
-      select: {
-        id: true,
-        username: true,
-        name: true,
-        email: true,
-        role: true,
-        isActive: true,
-        permissions: true,
-        createdAt: true,
-      },
-      orderBy: { createdAt: 'desc' },
     });
 
-    res.json(employees.map(e => ({
-      ...e,
-      permissions: e.permissions ? JSON.parse(e.permissions) : [],
-    })));
+    res.json({
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      isOwner: user.isOwner,
+      isMaster: user.isMaster,
+      companyName: user.companyName,
+      maxEmployees: user.maxEmployees || 3,
+      currentEmployees: employeeCount,
+      subscriptionPlan: user.subscriptionPlan,
+      subscriptionEnd: user.subscriptionEnd,
+    });
   } catch (error) {
-    console.error('Erro ao listar funcionários:', error);
-    res.status(500).json({ error: 'Erro ao listar funcionários' });
+    console.error('Erro ao buscar usuário:', error);
+    res.status(500).json({ error: 'Erro ao buscar usuário' });
   }
 });
 
-// Create employee
-router.post('/employees', authMiddleware, async (req: AuthRequest, res: Response) => {
+// List users (for admin/owner)
+router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.userId;
-    const { username, password, name, email, permissions } = req.body;
 
-    // Verificar se é dono da conta
     const currentUser = await prisma.user.findUnique({
       where: { id: userId },
     });
 
-    if (!currentUser || (!currentUser.isOwner && currentUser.ownerId)) {
+    if (!currentUser) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+
+    // Se for dono, lista seus funcionários
+    if (currentUser.isOwner) {
+      const employees = await prisma.user.findMany({
+        where: { ownerId: userId },
+        select: {
+          id: true,
+          username: true,
+          name: true,
+          email: true,
+          role: true,
+          isActive: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      return res.json(employees);
+    }
+
+    // Se for admin normal, lista usuários do mesmo dono
+    if (currentUser.ownerId) {
+      const employees = await prisma.user.findMany({
+        where: { ownerId: currentUser.ownerId },
+        select: {
+          id: true,
+          username: true,
+          name: true,
+          email: true,
+          role: true,
+          isActive: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      return res.json(employees);
+    }
+
+    res.json([]);
+  } catch (error) {
+    console.error('Erro ao listar usuários:', error);
+    res.status(500).json({ error: 'Erro ao listar usuários' });
+  }
+});
+
+// Create user/employee
+router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    const { username, password, name, email, role } = req.body;
+
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!currentUser) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+
+    // Verificar se é dono da conta
+    if (!currentUser.isOwner) {
       return res.status(403).json({ error: 'Apenas o dono da conta pode criar funcionários' });
+    }
+
+    // Verificar limite de funcionários
+    const employeeCount = await prisma.user.count({
+      where: { ownerId: userId },
+    });
+
+    const maxEmployees = currentUser.maxEmployees || 3;
+    if (employeeCount >= maxEmployees) {
+      return res.status(400).json({ 
+        error: `Limite de funcionários atingido (${maxEmployees}). Entre em contato para aumentar seu plano.` 
+      });
     }
 
     // Check if username exists
@@ -79,11 +150,10 @@ router.post('/employees', authMiddleware, async (req: AuthRequest, res: Response
         password: hashedPassword,
         name,
         email,
-        role: 'seller',
+        role: role || 'seller',
         isActive: true,
         ownerId: userId,
         isOwner: false,
-        permissions: JSON.stringify(permissions || []),
       },
     });
 
@@ -91,7 +161,6 @@ router.post('/employees', authMiddleware, async (req: AuthRequest, res: Response
       id: employee.id, 
       username: employee.username, 
       name: employee.name,
-      permissions: permissions || [],
     });
   } catch (error) {
     console.error('Erro ao criar funcionário:', error);
@@ -99,28 +168,38 @@ router.post('/employees', authMiddleware, async (req: AuthRequest, res: Response
   }
 });
 
-// Update employee
-router.put('/employees/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
+// Update user/employee
+router.put('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.userId;
     const { id } = req.params;
-    const { name, email, isActive, password, permissions } = req.body;
+    const { name, email, isActive, password, role } = req.body;
+
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!currentUser) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
 
     // Verificar se o funcionário pertence ao usuário
     const employee = await prisma.user.findFirst({
-      where: { id, ownerId: userId },
+      where: { 
+        id, 
+        ownerId: currentUser.isOwner ? userId : currentUser.ownerId 
+      },
     });
 
     if (!employee) {
       return res.status(404).json({ error: 'Funcionário não encontrado' });
     }
 
-    const updateData: any = { 
-      name, 
-      email, 
-      isActive,
-      permissions: JSON.stringify(permissions || []),
-    };
+    const updateData: any = { name, email, role };
+    
+    if (isActive !== undefined) {
+      updateData.isActive = isActive;
+    }
     
     if (password) {
       updateData.password = await bcrypt.hash(password, 12);
@@ -138,15 +217,26 @@ router.put('/employees/:id', authMiddleware, async (req: AuthRequest, res: Respo
   }
 });
 
-// Delete employee
-router.delete('/employees/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
+// Delete user/employee
+router.delete('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.userId;
     const { id } = req.params;
 
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!currentUser) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+
     // Verificar se o funcionário pertence ao usuário
     const employee = await prisma.user.findFirst({
-      where: { id, ownerId: userId },
+      where: { 
+        id, 
+        ownerId: currentUser.isOwner ? userId : currentUser.ownerId 
+      },
     });
 
     if (!employee) {

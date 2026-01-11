@@ -30,6 +30,7 @@ model User {
   monthlyValue       Float?   // Valor da mensalidade
   notes              String?  // Observações sobre o cliente
   phone              String?  // Telefone/WhatsApp
+  maxEmployees       Int      @default(3) // Limite de funcionários do plano
 
   // Campos para funcionários
   ownerId           String?   // ID do cliente dono (se for funcionário)

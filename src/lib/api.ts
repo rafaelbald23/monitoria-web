@@ -161,6 +161,9 @@ export const api = {
       method: 'DELETE',
     }),
 
+  // User Info
+  getUserInfo: () => request('/users/me'),
+
   // Master Panel
   checkMaster: () => request('/master/check'),
   getMasterDashboard: () => request('/master/dashboard'),

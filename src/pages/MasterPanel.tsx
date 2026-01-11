@@ -55,7 +55,7 @@ export default function MasterPanel() {
 
   const [formData, setFormData] = useState({
     username: '', password: '', name: '', email: '', phone: '', companyName: '',
-    subscriptionPlan: 'basic', subscriptionEnd: '', monthlyValue: '', notes: ''
+    subscriptionPlan: 'basic', subscriptionEnd: '', monthlyValue: '', notes: '', maxEmployees: '3'
   });
   const [paymentData, setPaymentData] = useState({ amount: '', daysToAdd: '30', method: 'pix', notes: '' });
 
@@ -87,7 +87,11 @@ export default function MasterPanel() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const data = { ...formData, monthlyValue: formData.monthlyValue ? parseFloat(formData.monthlyValue) : null };
+      const data = { 
+        ...formData, 
+        monthlyValue: formData.monthlyValue ? parseFloat(formData.monthlyValue) : null,
+        maxEmployees: parseInt(formData.maxEmployees) || 3
+      };
       if (editingClient) {
         await api.updateClient(editingClient.id, data);
         showMessage('success', 'Cliente atualizado!');
@@ -107,7 +111,7 @@ export default function MasterPanel() {
     setFormData({
       username: '', password: '', name: '', email: '', phone: '', companyName: '',
       subscriptionPlan: 'basic', subscriptionEnd: defaultEnd.toISOString().split('T')[0],
-      monthlyValue: '', notes: ''
+      monthlyValue: '', notes: '', maxEmployees: '3'
     });
   };
 
@@ -437,7 +441,8 @@ export default function MasterPanel() {
                       username: client.username, password: '', name: client.name, email: client.email,
                       phone: client.phone || '', companyName: client.companyName || '',
                       subscriptionPlan: client.subscriptionPlan, subscriptionEnd: client.subscriptionEnd?.split('T')[0] || '',
-                      monthlyValue: client.monthlyValue?.toString() || '', notes: client.notes || ''
+                      monthlyValue: client.monthlyValue?.toString() || '', notes: client.notes || '',
+                      maxEmployees: (client as any).maxEmployees?.toString() || '3'
                     });
                     setShowModal(true);
                   }}
@@ -507,6 +512,20 @@ export default function MasterPanel() {
                   <div>
                     <label className={`block text-sm mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Vencimento</label>
                     <input type="date" value={formData.subscriptionEnd} onChange={(e) => setFormData({ ...formData, subscriptionEnd: e.target.value })} className={inputClass} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className={`block text-sm mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Limite de Funcionários</label>
+                    <input type="number" min="1" max="100" value={formData.maxEmployees} onChange={(e) => setFormData({ ...formData, maxEmployees: e.target.value })} className={inputClass} />
+                  </div>
+                  <div>
+                    <label className={`block text-sm mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Plano</label>
+                    <select value={formData.subscriptionPlan} onChange={(e) => setFormData({ ...formData, subscriptionPlan: e.target.value })} className={inputClass}>
+                      <option value="basic">Básico</option>
+                      <option value="pro">Profissional</option>
+                      <option value="enterprise">Empresarial</option>
+                    </select>
                   </div>
                 </div>
                 <div>
