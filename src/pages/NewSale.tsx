@@ -56,6 +56,13 @@ export default function NewSale() {
   useEffect(() => {
     if (accounts.length > 0) {
       loadVerifiedOrders();
+      
+      // Auto-refresh a cada 30 minutos
+      const interval = setInterval(() => {
+        handleSyncOrders();
+      }, 30 * 60 * 1000); // 30 minutos
+      
+      return () => clearInterval(interval);
     }
   }, [accounts]);
 
@@ -246,14 +253,10 @@ export default function NewSale() {
           <button
             onClick={handleSyncOrders}
             disabled={loadingOrders}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-colors ${
-              isDarkMode 
-                ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' 
-                : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
-            } disabled:opacity-50`}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium bg-purple-600/30 text-purple-400 hover:bg-purple-600/40 border border-purple-500/30 transition-all disabled:opacity-50"
           >
             <RefreshIcon size={18} className={loadingOrders ? 'animate-spin' : ''} />
-            {loadingOrders ? 'Sincronizando...' : 'Atualizar Vendas Bling'}
+            Atualizar Vendas Bling
           </button>
         </div>
 
@@ -290,14 +293,9 @@ export default function NewSale() {
                 <h3 className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                   📦 Pedidos Verificados (Bling)
                 </h3>
-                <button
-                  onClick={handleSyncOrders}
-                  disabled={loadingOrders}
-                  className={`flex items-center gap-1 px-3 py-1 rounded-lg text-sm ${isDarkMode ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}
-                >
-                  <RefreshIcon size={14} className={loadingOrders ? 'animate-spin' : ''} />
-                  Sincronizar
-                </button>
+                <span className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                  Auto-atualiza a cada 30 min
+                </span>
               </div>
               
               {verifiedOrders.length === 0 ? (
