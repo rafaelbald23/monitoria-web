@@ -484,6 +484,12 @@ export default function MasterPanel() {
                     </div>
                   </div>
                 )}
+                {editingClient && (
+                  <div>
+                    <label className={`block text-sm mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Nova Senha (deixe vazio para manter)</label>
+                    <input type="password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} className={inputClass} placeholder="Digite para alterar a senha do cliente" />
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className={`block text-sm mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Nome do responsável *</label>

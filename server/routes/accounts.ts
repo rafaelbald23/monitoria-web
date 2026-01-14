@@ -205,7 +205,25 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
     for (const bp of allProducts) {
       try {
         const sku = bp.codigo || String(bp.id);
-        const ean = bp.gtin || bp.codigoBarras || null; // Código EAN/GTIN do Bling
+        
+        // Buscar detalhes do produto individual para obter EAN/GTIN
+        let ean = bp.gtin || bp.codigoBarras || null;
+        if (!ean) {
+          try {
+            const detailResponse = await axios.get(`${BLING_API_URL}/produtos/${bp.id}`, {
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                Accept: 'application/json',
+              },
+            });
+            const productDetail = detailResponse.data?.data;
+            ean = productDetail?.gtin || productDetail?.codigoBarras || productDetail?.codigo_barras || null;
+          } catch (detailError) {
+            // Se falhar, continua sem EAN
+            console.log(`⚠️ Não foi possível buscar detalhes do produto ${bp.id}`);
+          }
+        }
+        
         const stock = stockMap[bp.id] || bp.estoque?.saldoVirtualTotal || 0;
 
         const existing = await prisma.product.findUnique({

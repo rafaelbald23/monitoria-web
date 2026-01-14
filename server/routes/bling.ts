@@ -284,20 +284,32 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
       }
     }
 
-    // Mapear status do Bling
+    // Mapear status do Bling - baseado na API v3
+    // Referência: Bling > Pedidos > Pedidos de vendas > Status
     const statusMap: Record<number, string> = {
-      0: 'Em Digitação',
-      1: 'Em Andamento',
-      2: 'Atendido',
-      3: 'Cancelado',
-      4: 'Verificado',
-      5: 'Reenvios',
-      6: 'Vendas Agendadas',
+      0: 'Em Aberto',
+      1: 'Atendido',
+      2: 'Cancelado',
+      3: 'Em Andamento',
+      4: 'Venda Agenciada',
+      5: 'Verificado',
+      6: 'Aguardando',
+      7: 'Não Entregue',
+      8: 'Entregue',
+      9: 'Em Digitação',
+      10: 'Checado',
+      11: 'Enviado',
+      12: 'Pronto para Envio',
     };
 
     // Salvar/atualizar pedidos no banco
     for (const order of allOrders) {
-      const status = statusMap[order.situacao?.id] || order.situacao?.valor || 'Desconhecido';
+      // O status pode vir como objeto situacao.id ou situacao.valor
+      const statusId = order.situacao?.id;
+      const statusValor = order.situacao?.valor;
+      const status = statusMap[statusId] || statusValor || 'Desconhecido';
+      
+      console.log(`📦 Pedido #${order.numero}: situacao.id=${statusId}, situacao.valor=${statusValor}, status final=${status}`);
       
       await prisma.blingOrder.upsert({
         where: {
