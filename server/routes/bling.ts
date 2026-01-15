@@ -340,7 +340,7 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
     }
 
     // Mapear status do Bling - baseado na API v3
-    // Referência: Bling > Pedidos > Pedidos de vendas > Status
+    // Se o ID não estiver mapeado, usa o valor texto que vem da API
     const statusMap: Record<number, string> = {
       0: 'Em Aberto',
       1: 'Atendido',
@@ -355,6 +355,9 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
       10: 'Checado',
       11: 'Enviado',
       12: 'Pronto para Envio',
+      13: 'Pendente',
+      14: 'Faturado',
+      15: 'Pronto',
     };
 
     // Salvar/atualizar pedidos no banco
@@ -362,8 +365,9 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
       try {
         // O status pode vir como objeto situacao.id ou situacao.valor
         const statusId = order.situacao?.id;
-        const statusValor = order.situacao?.valor;
-        const status = statusMap[statusId] || statusValor || 'Desconhecido';
+        const statusValor = order.situacao?.valor || order.situacao?.nome || '';
+        // Usa o mapeamento se existir, senão usa o valor texto da API
+        const status = statusMap[statusId] || statusValor || `Status ${statusId}`;
         
         console.log(`📦 Pedido #${order.numero}: situacao.id=${statusId}, situacao.valor=${statusValor}, status final=${status}`);
         
