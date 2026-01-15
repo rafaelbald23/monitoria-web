@@ -264,13 +264,19 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
     let accessToken = account.accessToken;
     if (account.tokenExpiresAt && new Date(account.tokenExpiresAt) < new Date()) {
       console.log('🔄 Token expirado, renovando...');
-      accessToken = await refreshAccessToken(account);
+      try {
+        accessToken = await refreshAccessToken(account);
+      } catch (refreshError: any) {
+        console.error('❌ Erro ao renovar token:', refreshError.response?.data || refreshError.message);
+        return res.json({ success: false, error: 'Token expirado. Reconecte a conta Bling.' });
+      }
     }
 
     // Buscar pedidos de venda do Bling
     let allOrders: any[] = [];
     let page = 1;
     let hasMore = true;
+    let lastError: string | null = null;
 
     console.log('📦 Iniciando busca de pedidos na API Bling...');
 
@@ -296,11 +302,30 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
         }
       } catch (apiError: any) {
         console.error('❌ Erro na API Bling:', apiError.response?.status, apiError.response?.data);
+        lastError = apiError.response?.data?.error?.message || apiError.response?.data?.error?.description || `Erro ${apiError.response?.status}`;
+        
+        // Se for 401, tenta renovar o token
+        if (apiError.response?.status === 401) {
+          try {
+            console.log('🔄 Token inválido, tentando renovar...');
+            accessToken = await refreshAccessToken(account);
+            continue; // Tenta novamente com o novo token
+          } catch (refreshError: any) {
+            console.error('❌ Falha ao renovar token:', refreshError.message);
+            return res.json({ success: false, error: 'Token inválido. Reconecte a conta Bling.' });
+          }
+        }
+        
         hasMore = false;
       }
     }
 
     console.log('📦 Total de pedidos encontrados:', allOrders.length);
+
+    // Se não encontrou pedidos e teve erro, retorna o erro
+    if (allOrders.length === 0 && lastError) {
+      return res.json({ success: false, error: lastError });
+    }
 
     // Mapear status do Bling - baseado na API v3
     // Referência: Bling > Pedidos > Pedidos de vendas > Status
