@@ -363,13 +363,24 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
     // Salvar/atualizar pedidos no banco
     for (const order of allOrders) {
       try {
-        // O status pode vir como objeto situacao.id ou situacao.valor
+        // O status pode vir de diferentes formas na API v3:
+        // - situacao.id (número pequeno 0-15 para status padrão)
+        // - situacao.id (número grande para status customizado)
+        // - situacao.valor ou situacao.nome (texto do status)
         const statusId = order.situacao?.id;
-        const statusValor = order.situacao?.valor || order.situacao?.nome || '';
-        // Usa o mapeamento se existir, senão usa o valor texto da API
-        const status = statusMap[statusId] || statusValor || `Status ${statusId}`;
+        const statusTexto = order.situacao?.valor || order.situacao?.nome || order.situacao?.descricao || '';
         
-        console.log(`📦 Pedido #${order.numero}: situacao.id=${statusId}, situacao.valor=${statusValor}, status final=${status}`);
+        // Se o ID for pequeno (0-20), usa o mapeamento. Senão, usa o texto.
+        let status: string;
+        if (statusId !== undefined && statusId <= 20 && statusMap[statusId]) {
+          status = statusMap[statusId];
+        } else if (statusTexto) {
+          status = String(statusTexto);
+        } else {
+          status = 'Sem Status';
+        }
+        
+        console.log(`📦 Pedido #${order.numero}: situacao=${JSON.stringify(order.situacao)}, status final=${status}`);
         
         await prisma.blingOrder.upsert({
           where: {
