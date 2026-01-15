@@ -282,6 +282,11 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
 
     while (hasMore && page <= 10) {
       try {
+        // Aguardar 400ms entre requisições para respeitar limite de 3/segundo
+        if (page > 1) {
+          await new Promise(resolve => setTimeout(resolve, 400));
+        }
+        
         const response = await axios.get(`${BLING_API_URL}/pedidos/vendas?limite=100&pagina=${page}`, {
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -303,6 +308,13 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
       } catch (apiError: any) {
         console.error('❌ Erro na API Bling:', apiError.response?.status, apiError.response?.data);
         lastError = apiError.response?.data?.error?.message || apiError.response?.data?.error?.description || `Erro ${apiError.response?.status}`;
+        
+        // Se for 429 (rate limit), aguarda e tenta novamente
+        if (apiError.response?.status === 429) {
+          console.log('⏳ Rate limit atingido, aguardando 2 segundos...');
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          continue;
+        }
         
         // Se for 401, tenta renovar o token
         if (apiError.response?.status === 401) {
@@ -347,39 +359,43 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
 
     // Salvar/atualizar pedidos no banco
     for (const order of allOrders) {
-      // O status pode vir como objeto situacao.id ou situacao.valor
-      const statusId = order.situacao?.id;
-      const statusValor = order.situacao?.valor;
-      const status = statusMap[statusId] || statusValor || 'Desconhecido';
-      
-      console.log(`📦 Pedido #${order.numero}: situacao.id=${statusId}, situacao.valor=${statusValor}, status final=${status}`);
-      
-      await prisma.blingOrder.upsert({
-        where: {
-          blingOrderId_accountId: {
-            blingOrderId: String(order.id),
-            accountId: accountId,
+      try {
+        // O status pode vir como objeto situacao.id ou situacao.valor
+        const statusId = order.situacao?.id;
+        const statusValor = order.situacao?.valor;
+        const status = statusMap[statusId] || statusValor || 'Desconhecido';
+        
+        console.log(`📦 Pedido #${order.numero}: situacao.id=${statusId}, situacao.valor=${statusValor}, status final=${status}`);
+        
+        await prisma.blingOrder.upsert({
+          where: {
+            blingOrderId_accountId: {
+              blingOrderId: String(order.id),
+              accountId: accountId,
+            },
           },
-        },
-        update: {
-          status,
-          customerName: order.contato?.nome || null,
-          totalAmount: order.total || 0,
-          items: JSON.stringify(order.itens || []),
-          updatedAt: new Date(),
-        },
-        create: {
-          blingOrderId: String(order.id),
-          orderNumber: order.numero || String(order.id),
-          accountId,
-          userId,
-          status,
-          customerName: order.contato?.nome || null,
-          totalAmount: order.total || 0,
-          items: JSON.stringify(order.itens || []),
-          blingCreatedAt: order.data ? new Date(order.data) : null,
-        },
-      });
+          update: {
+            status,
+            customerName: order.contato?.nome || null,
+            totalAmount: order.total || 0,
+            items: JSON.stringify(order.itens || []),
+            updatedAt: new Date(),
+          },
+          create: {
+            blingOrderId: String(order.id),
+            orderNumber: String(order.numero || order.id),
+            accountId,
+            userId,
+            status,
+            customerName: order.contato?.nome || null,
+            totalAmount: order.total || 0,
+            items: JSON.stringify(order.itens || []),
+            blingCreatedAt: order.data ? new Date(order.data) : null,
+          },
+        });
+      } catch (upsertError: any) {
+        console.error(`❌ Erro ao salvar pedido ${order.numero}:`, upsertError.message);
+      }
     }
 
     // Retornar pedidos do banco
