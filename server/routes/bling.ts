@@ -247,17 +247,23 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
     const { accountId } = req.params;
     const userId = req.user!.userId;
 
+    console.log('🔍 Buscando pedidos para conta:', accountId, 'usuário:', userId);
+
     const account = await prisma.blingAccount.findFirst({
       where: { id: accountId, userId },
     });
 
     if (!account || !account.accessToken) {
+      console.log('❌ Conta não conectada ou sem token');
       return res.json({ success: false, error: 'Conta não conectada' });
     }
+
+    console.log('✅ Conta encontrada:', account.name);
 
     // Check if token expired and refresh if needed
     let accessToken = account.accessToken;
     if (account.tokenExpiresAt && new Date(account.tokenExpiresAt) < new Date()) {
+      console.log('🔄 Token expirado, renovando...');
       accessToken = await refreshAccessToken(account);
     }
 
@@ -266,23 +272,35 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
     let page = 1;
     let hasMore = true;
 
+    console.log('📦 Iniciando busca de pedidos na API Bling...');
+
     while (hasMore && page <= 10) {
-      const response = await axios.get(`${BLING_API_URL}/pedidos/vendas?limite=100&pagina=${page}`, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: 'application/json',
-        },
-      });
+      try {
+        const response = await axios.get(`${BLING_API_URL}/pedidos/vendas?limite=100&pagina=${page}`, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: 'application/json',
+          },
+        });
 
-      const orders = response.data?.data || [];
-      allOrders = allOrders.concat(orders);
+        console.log(`📄 Página ${page} - Status:`, response.status);
+        const orders = response.data?.data || [];
+        console.log(`📄 Página ${page} - Pedidos encontrados:`, orders.length);
+        
+        allOrders = allOrders.concat(orders);
 
-      if (orders.length < 100) {
+        if (orders.length < 100) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+      } catch (apiError: any) {
+        console.error('❌ Erro na API Bling:', apiError.response?.status, apiError.response?.data);
         hasMore = false;
-      } else {
-        page++;
       }
     }
+
+    console.log('📦 Total de pedidos encontrados:', allOrders.length);
 
     // Mapear status do Bling - baseado na API v3
     // Referência: Bling > Pedidos > Pedidos de vendas > Status

@@ -88,9 +88,16 @@ export default function Sales() {
   const handleSyncOrders = async () => {
     setSyncing(true);
     try {
+      let totalSynced = 0;
       for (const account of accounts) {
-        await api.getBlingOrders(account.id);
+        console.log('Sincronizando conta:', account.name, account.id);
+        const result = await api.getBlingOrders(account.id) as any;
+        console.log('Resultado sync:', result);
+        if (result.success && result.orders) {
+          totalSynced += result.orders.length;
+        }
       }
+      console.log('Total sincronizado:', totalSynced);
       await loadBlingOrders();
     } catch (error) {
       console.error('Erro ao sincronizar:', error);
