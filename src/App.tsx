@@ -90,7 +90,7 @@ function App() {
           path="/employees"
           element={
             <ProtectedRoute>
-              <Settings />
+              <Users />
             </ProtectedRoute>
           }
         />
