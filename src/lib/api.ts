@@ -122,6 +122,8 @@ export const api = {
     request(`/bling/orders/${accountId}`),
   getVerifiedOrders: (accountId: string) =>
     request(`/bling/orders/verified/${accountId}`),
+  getAllBlingOrders: (accountId: string) =>
+    request(`/bling/orders/all/${accountId}`),
   processOrder: (orderId: string) =>
     request(`/bling/orders/${orderId}/process`, {
       method: 'POST',

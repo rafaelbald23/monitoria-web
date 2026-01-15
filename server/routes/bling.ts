@@ -369,7 +369,10 @@ router.get('/orders/verified/:accountId', authMiddleware, async (req: AuthReques
       where: {
         accountId,
         userId,
-        status: 'Verificado',
+        OR: [
+          { status: 'Verificado' },
+          { status: 'Checado' },
+        ],
         isProcessed: false,
       },
       orderBy: { createdAt: 'desc' },
@@ -385,6 +388,38 @@ router.get('/orders/verified/:accountId', authMiddleware, async (req: AuthReques
   } catch (error: any) {
     console.error('Erro ao buscar pedidos verificados:', error);
     res.json({ success: false, error: 'Erro ao buscar pedidos verificados' });
+  }
+});
+
+// Buscar todos os pedidos dos últimos 3 meses (para tela de Vendas)
+router.get('/orders/all/:accountId', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { accountId } = req.params;
+    const userId = req.user!.userId;
+
+    // Últimos 3 meses
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+
+    const orders = await prisma.blingOrder.findMany({
+      where: {
+        accountId,
+        userId,
+        createdAt: { gte: threeMonthsAgo },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json({
+      success: true,
+      orders: orders.map(o => ({
+        ...o,
+        items: JSON.parse(o.items),
+      })),
+    });
+  } catch (error: any) {
+    console.error('Erro ao buscar todos os pedidos:', error);
+    res.json({ success: false, error: 'Erro ao buscar pedidos' });
   }
 });
 
