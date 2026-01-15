@@ -363,24 +363,24 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
     // Salvar/atualizar pedidos no banco
     for (const order of allOrders) {
       try {
-        // O status pode vir de diferentes formas na API v3:
-        // - situacao.id (número pequeno 0-15 para status padrão)
-        // - situacao.id (número grande para status customizado)
-        // - situacao.valor ou situacao.nome (texto do status)
+        // O status pode vir de diferentes formas na API v3
         const statusId = order.situacao?.id;
         const statusTexto = order.situacao?.valor || order.situacao?.nome || order.situacao?.descricao || '';
         
-        // Se o ID for pequeno (0-20), usa o mapeamento. Senão, usa o texto.
+        // Usa o mapeamento se existir, senão usa o texto, senão "Sem Status"
         let status: string;
-        if (statusId !== undefined && statusId <= 20 && statusMap[statusId]) {
+        if (statusId !== undefined && statusMap[statusId]) {
           status = statusMap[statusId];
-        } else if (statusTexto) {
-          status = String(statusTexto);
+        } else if (statusTexto && typeof statusTexto === 'string' && statusTexto.length > 0) {
+          status = statusTexto;
+        } else if (statusId !== undefined) {
+          // Se tem ID mas não tem texto, mapeia os mais comuns
+          status = statusId === 11 ? 'Enviado' : statusId === 12 ? 'Pronto para Envio' : 'Sem Status';
         } else {
           status = 'Sem Status';
         }
         
-        console.log(`📦 Pedido #${order.numero}: situacao=${JSON.stringify(order.situacao)}, status final=${status}`);
+        console.log(`📦 Pedido #${order.numero}: id=${statusId}, texto=${statusTexto}, final=${status}`);
         
         await prisma.blingOrder.upsert({
           where: {
@@ -481,7 +481,7 @@ router.get('/orders/all/:accountId', authMiddleware, async (req: AuthRequest, re
         userId,
         createdAt: { gte: threeMonthsAgo },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { blingCreatedAt: 'desc' }, // Ordenar pela data do Bling (mais recente primeiro)
     });
 
     res.json({

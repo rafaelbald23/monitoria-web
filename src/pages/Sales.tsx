@@ -67,8 +67,12 @@ export default function Sales() {
         }
       }
       
-      // Ordenar por data mais recente
-      allOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      // Ordenar por data do Bling (mais recente primeiro)
+      allOrders.sort((a, b) => {
+        const dateA = a.blingCreatedAt ? new Date(a.blingCreatedAt).getTime() : new Date(a.createdAt).getTime();
+        const dateB = b.blingCreatedAt ? new Date(b.blingCreatedAt).getTime() : new Date(b.createdAt).getTime();
+        return dateB - dateA;
+      });
       setBlingOrders(allOrders);
       
       // Calcular estatísticas
