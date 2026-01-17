@@ -12,9 +12,22 @@ import {
   AlertIcon,
   LinkIcon,
   RefreshIcon,
+  CalendarIcon,
 } from '../components/Icons';
 
+interface PeriodStats {
+  startDate: string;
+  endDate: string;
+  totalEntriesQty: number;
+  totalExitsQty: number;
+  totalEntriesCount: number;
+  totalExitsCount: number;
+  salesInPeriod: number;
+  salesCount: number;
+}
+
 interface DashboardStats {
+  periodStats: PeriodStats;
   todaySales: number;
   lowStockItems: number;
   activeProducts: number;
@@ -33,6 +46,16 @@ export default function Dashboard() {
   const { user } = useAuth();
   const { isDarkMode } = useTheme();
   const [stats, setStats] = useState<DashboardStats>({
+    periodStats: {
+      startDate: '',
+      endDate: '',
+      totalEntriesQty: 0,
+      totalExitsQty: 0,
+      totalEntriesCount: 0,
+      totalExitsCount: 0,
+      salesInPeriod: 0,
+      salesCount: 0,
+    },
     todaySales: 0,
     lowStockItems: 0,
     activeProducts: 0,
@@ -41,15 +64,54 @@ export default function Dashboard() {
     recentSales: []
   });
   const [loading, setLoading] = useState(true);
+  const [selectedPeriod, setSelectedPeriod] = useState('today');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
 
   useEffect(() => {
     loadDashboardData();
-  }, []);
+  }, [selectedPeriod, customStartDate, customEndDate]);
+
+  const getDateRange = () => {
+    const today = new Date();
+    let startDate: Date;
+    let endDate = new Date(today);
+
+    switch (selectedPeriod) {
+      case 'today':
+        startDate = new Date(today);
+        break;
+      case 'week':
+        startDate = new Date(today);
+        startDate.setDate(today.getDate() - 7);
+        break;
+      case 'month':
+        startDate = new Date(today);
+        startDate.setMonth(today.getMonth() - 1);
+        break;
+      case 'custom':
+        if (customStartDate && customEndDate) {
+          startDate = new Date(customStartDate);
+          endDate = new Date(customEndDate);
+        } else {
+          startDate = new Date(today);
+        }
+        break;
+      default:
+        startDate = new Date(today);
+    }
+
+    return {
+      startDate: startDate.toISOString().split('T')[0],
+      endDate: endDate.toISOString().split('T')[0],
+    };
+  };
 
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      const data = await api.getDashboardStats();
+      const { startDate, endDate } = getDateRange();
+      const data = await api.getDashboardStats(startDate, endDate);
       setStats(data);
     } catch (error) {
       console.error('Erro ao carregar dados do dashboard:', error);
@@ -58,19 +120,51 @@ export default function Dashboard() {
     }
   };
 
+  const getPeriodLabel = () => {
+    switch (selectedPeriod) {
+      case 'today': return 'Hoje';
+      case 'week': return 'Últimos 7 dias';
+      case 'month': return 'Último mês';
+      case 'custom': return 'Período personalizado';
+      default: return 'Hoje';
+    }
+  };
+
   const dashboardStats = [
     {
-      title: 'Vendas Hoje',
-      value: stats.todaySales.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
-      icon: <DollarIcon size={24} />,
+      title: `Entradas (${getPeriodLabel()})`,
+      value: `${stats.periodStats.totalEntriesQty} unidades`,
+      subtitle: `${stats.periodStats.totalEntriesCount} movimentos`,
+      icon: <TrendingUpIcon size={24} />,
       bgColor: isDarkMode ? 'bg-green-500/10' : 'bg-green-100',
       textColor: isDarkMode ? 'text-green-400' : 'text-green-600',
+      path: '/products',
+      description: 'Produtos que entraram no estoque'
+    },
+    {
+      title: `Saídas (${getPeriodLabel()})`,
+      value: `${stats.periodStats.totalExitsQty} unidades`,
+      subtitle: `${stats.periodStats.totalExitsCount} movimentos`,
+      icon: <ShoppingCartIcon size={24} />,
+      bgColor: isDarkMode ? 'bg-blue-500/10' : 'bg-blue-100',
+      textColor: isDarkMode ? 'text-blue-400' : 'text-blue-600',
       path: '/sales',
-      description: 'Ver todas as vendas'
+      description: 'Produtos que saíram do estoque'
+    },
+    {
+      title: `Vendas (${getPeriodLabel()})`,
+      value: stats.periodStats.salesInPeriod.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+      subtitle: `${stats.periodStats.salesCount} vendas`,
+      icon: <DollarIcon size={24} />,
+      bgColor: isDarkMode ? 'bg-purple-500/10' : 'bg-purple-100',
+      textColor: isDarkMode ? 'text-purple-400' : 'text-purple-600',
+      path: '/sales',
+      description: 'Faturamento do período'
     },
     {
       title: 'Estoque Baixo',
       value: `${stats.lowStockItems} itens`,
+      subtitle: 'Produtos com menos de 10 unidades',
       icon: <AlertIcon size={24} />,
       bgColor: stats.lowStockItems > 0 
         ? (isDarkMode ? 'bg-red-500/10' : 'bg-red-100')
@@ -79,11 +173,12 @@ export default function Dashboard() {
         ? (isDarkMode ? 'text-red-400' : 'text-red-600')
         : (isDarkMode ? 'text-yellow-400' : 'text-yellow-600'),
       path: '/products',
-      description: 'Produtos com menos de 10 unidades'
+      description: 'Verificar produtos'
     },
     {
       title: 'Produtos Ativos',
       value: stats.activeProducts.toString(),
+      subtitle: 'Total de produtos cadastrados',
       icon: <PackageIcon size={24} />,
       bgColor: isDarkMode ? 'bg-cyan-500/10' : 'bg-cyan-100',
       textColor: isDarkMode ? 'text-cyan-400' : 'text-cyan-600',
@@ -93,9 +188,10 @@ export default function Dashboard() {
     {
       title: 'Contas Bling',
       value: stats.blingAccounts.toString(),
+      subtitle: 'Contas conectadas',
       icon: <LinkIcon size={24} />,
-      bgColor: isDarkMode ? 'bg-purple-500/10' : 'bg-purple-100',
-      textColor: isDarkMode ? 'text-purple-400' : 'text-purple-600',
+      bgColor: isDarkMode ? 'bg-orange-500/10' : 'bg-orange-100',
+      textColor: isDarkMode ? 'text-orange-400' : 'text-orange-600',
       path: '/accounts',
       description: 'Gerenciar contas'
     },
@@ -145,18 +241,67 @@ export default function Dashboard() {
               Bem-vindo, {user?.name}! Visão geral do seu negócio.
             </p>
           </div>
-          <button
-            onClick={loadDashboardData}
-            disabled={loading}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-colors ${
-              isDarkMode 
-                ? 'bg-white/5 text-gray-300 hover:bg-white/10' 
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            <RefreshIcon size={18} className={loading ? 'animate-spin' : ''} />
-            Atualizar
-          </button>
+          
+          <div className="flex items-center gap-4">
+            {/* Seletor de Período */}
+            <div className="flex items-center gap-2">
+              <CalendarIcon size={20} className={isDarkMode ? 'text-gray-400' : 'text-gray-600'} />
+              <select
+                value={selectedPeriod}
+                onChange={(e) => setSelectedPeriod(e.target.value)}
+                className={`rounded-xl px-3 py-2 border outline-none ${
+                  isDarkMode 
+                    ? 'bg-white/5 border-white/10 text-white' 
+                    : 'bg-white border-gray-300 text-gray-900'
+                }`}
+              >
+                <option value="today">Hoje</option>
+                <option value="week">Últimos 7 dias</option>
+                <option value="month">Último mês</option>
+                <option value="custom">Personalizado</option>
+              </select>
+            </div>
+
+            {/* Datas personalizadas */}
+            {selectedPeriod === 'custom' && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className={`rounded-xl px-3 py-2 border outline-none ${
+                    isDarkMode 
+                      ? 'bg-white/5 border-white/10 text-white' 
+                      : 'bg-white border-gray-300 text-gray-900'
+                  }`}
+                />
+                <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>até</span>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className={`rounded-xl px-3 py-2 border outline-none ${
+                    isDarkMode 
+                      ? 'bg-white/5 border-white/10 text-white' 
+                      : 'bg-white border-gray-300 text-gray-900'
+                  }`}
+                />
+              </div>
+            )}
+
+            <button
+              onClick={loadDashboardData}
+              disabled={loading}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-colors ${
+                isDarkMode 
+                  ? 'bg-white/5 text-gray-300 hover:bg-white/10' 
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <RefreshIcon size={18} className={loading ? 'animate-spin' : ''} />
+              Atualizar
+            </button>
+          </div>
         </div>
 
         {/* Welcome Card */}
@@ -200,6 +345,11 @@ export default function Dashboard() {
                   <p className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     {loading ? '...' : stat.value}
                   </p>
+                  {stat.subtitle && (
+                    <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                      {stat.subtitle}
+                    </p>
+                  )}
                   <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
                     {stat.description}
                   </p>

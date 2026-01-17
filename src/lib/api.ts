@@ -61,7 +61,13 @@ export const api = {
     }),
 
   // Dashboard
-  getDashboardStats: () => request('/dashboard/stats'),
+  getDashboardStats: (startDate?: string, endDate?: string) => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    const queryString = params.toString();
+    return request(`/dashboard/stats${queryString ? `?${queryString}` : ''}`);
+  },
 
   // Products
   getProducts: () => request('/products'),
