@@ -326,23 +326,22 @@ export default function Settings() {
             )}
 
             <div className="grid gap-4 sm:grid-cols-2">
-              {/* Criar Backup */}
               <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
-                <h3 className={`font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Criar Backup</h3>
+                <h3 className={`font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>💾 Criar Backup</h3>
                 <p className={`text-sm mb-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Baixe todos os seus dados (produtos, clientes, vendas, etc.) em um arquivo JSON
+                  📦 Baixe todos os seus dados (produtos, clientes, vendas, etc.) em um arquivo JSON
                 </p>
                 <button
                   onClick={handleCreateBackup}
                   disabled={backupLoading}
-                  className="w-full py-2 px-4 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="w-full py-2 px-4 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {backupLoading ? (
-                    'Criando...'
+                    '⏳ Criando...'
                   ) : (
                     <>
                       <DownloadIcon size={16} />
-                      Baixar Backup
+                      💾 Baixar Backup
                     </>
                   )}
                 </button>
@@ -350,17 +349,17 @@ export default function Settings() {
 
               {/* Restaurar Backup */}
               <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
-                <h3 className={`font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Restaurar Backup</h3>
+                <h3 className={`font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>📂 Restaurar Backup</h3>
                 <p className={`text-sm mb-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Carregue um arquivo de backup para restaurar seus dados
+                  📥 Carregue um arquivo de backup para restaurar seus dados
                 </p>
-                <label className="w-full py-2 px-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium hover:opacity-90 transition-opacity cursor-pointer flex items-center justify-center gap-2">
+                <label className="w-full py-2 px-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-medium hover:opacity-90 transition-opacity cursor-pointer flex items-center justify-center gap-2">
                   {restoreLoading ? (
-                    'Restaurando...'
+                    '⏳ Restaurando...'
                   ) : (
                     <>
                       <UploadIcon size={16} />
-                      Carregar Backup
+                      📂 Carregar Backup
                     </>
                   )}
                   <input
@@ -374,7 +373,7 @@ export default function Settings() {
               </div>
             </div>
 
-            <div className={`mt-4 p-3 rounded-lg ${isDarkMode ? 'bg-yellow-500/20' : 'bg-yellow-100'}`}>
+            <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-yellow-500/10 border-yellow-500/20' : 'bg-yellow-50 border-yellow-200'}`}>
               <p className={`text-sm ${isDarkMode ? 'text-yellow-400' : 'text-yellow-700'}`}>
                 <strong>⚠️ Importante:</strong> O backup inclui todos os seus dados exceto senhas e tokens de acesso. 
                 Após restaurar um backup, você precisará reconectar suas contas do Bling.

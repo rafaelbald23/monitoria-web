@@ -37,7 +37,7 @@ export default function BackupModal({ isOpen, onClose, onBackupComplete }: Backu
 
         setMessage({ 
           type: 'success', 
-          text: `Backup criado com sucesso! ${result.backup.summary.products} produtos, ${result.backup.summary.customers} clientes salvos.` 
+          text: `Backup criado com sucesso! 📦 ${result.backup.summary.products} produtos, 👥 ${result.backup.summary.customers} clientes salvos.` 
         });
 
         // Atualizar data do último backup
@@ -78,8 +78,8 @@ export default function BackupModal({ isOpen, onClose, onBackupComplete }: Backu
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className={`max-w-md w-full rounded-2xl p-6 ${isDarkMode ? 'bg-gray-800 border border-white/10' : 'bg-white border border-gray-200'} shadow-2xl`}>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className={`max-w-md w-full rounded-2xl p-6 border shadow-2xl ${isDarkMode ? 'bg-slate-800/95 border-white/10' : 'bg-white border-gray-200'}`}>
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
@@ -88,7 +88,7 @@ export default function BackupModal({ isOpen, onClose, onBackupComplete }: Backu
             </div>
             <div>
               <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                Backup Recomendado
+                🔒 Backup Recomendado
               </h2>
               <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                 Proteja seus dados importantes
@@ -97,7 +97,7 @@ export default function BackupModal({ isOpen, onClose, onBackupComplete }: Backu
           </div>
           <button
             onClick={onClose}
-            className={`p-2 rounded-lg hover:bg-gray-100 ${isDarkMode ? 'hover:bg-white/10 text-gray-400' : 'text-gray-500'}`}
+            className={`p-2 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-white/10 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'}`}
           >
             <XIcon size={20} />
           </button>
@@ -106,25 +106,25 @@ export default function BackupModal({ isOpen, onClose, onBackupComplete }: Backu
         {/* Content */}
         <div className="mb-6">
           <p className={`text-sm mb-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-            Recomendamos fazer backup dos seus dados regularmente para garantir que suas informações estejam sempre seguras.
+            📋 Recomendamos fazer backup dos seus dados regularmente para garantir que suas informações estejam sempre seguras.
           </p>
           
-          <div className={`p-4 rounded-xl ${isDarkMode ? 'bg-blue-500/20 border border-blue-500/30' : 'bg-blue-50 border border-blue-200'}`}>
-            <p className={`text-sm font-medium ${isDarkMode ? 'text-blue-400' : 'text-blue-700'}`}>
+          <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-blue-500/10 border-blue-500/20' : 'bg-blue-50 border-blue-200'}`}>
+            <p className={`text-sm font-medium mb-2 ${isDarkMode ? 'text-blue-400' : 'text-blue-700'}`}>
               📦 O backup inclui:
             </p>
-            <ul className={`text-xs mt-2 space-y-1 ${isDarkMode ? 'text-blue-300' : 'text-blue-600'}`}>
-              <li>• Produtos e estoque</li>
-              <li>• Clientes e vendas</li>
-              <li>• Configurações das contas</li>
-              <li>• Histórico de movimentações</li>
+            <ul className={`text-xs space-y-1 ${isDarkMode ? 'text-blue-300' : 'text-blue-600'}`}>
+              <li>• 📦 Produtos e estoque</li>
+              <li>• 👥 Clientes e vendas</li>
+              <li>• ⚙️ Configurações das contas</li>
+              <li>• 📊 Histórico de movimentações</li>
             </ul>
           </div>
         </div>
 
         {/* Message */}
         {message && (
-          <div className={`mb-4 p-3 rounded-xl ${message.type === 'success' ? isDarkMode ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-700' : isDarkMode ? 'bg-red-500/20 text-red-400' : 'bg-red-100 text-red-700'}`}>
+          <div className={`mb-4 p-3 rounded-xl border ${message.type === 'success' ? isDarkMode ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-green-50 text-green-700 border-green-200' : isDarkMode ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-red-50 text-red-700 border-red-200'}`}>
             <p className="text-sm font-medium">{message.text}</p>
           </div>
         )}
@@ -137,11 +137,11 @@ export default function BackupModal({ isOpen, onClose, onBackupComplete }: Backu
             className="w-full py-3 px-4 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-xl font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {loading ? (
-              'Criando backup...'
+              '⏳ Criando backup...'
             ) : (
               <>
                 <DownloadIcon size={18} />
-                Fazer Backup Agora
+                💾 Fazer Backup Agora
               </>
             )}
           </button>
@@ -150,18 +150,18 @@ export default function BackupModal({ isOpen, onClose, onBackupComplete }: Backu
             <button
               onClick={handleSkipFor7Days}
               disabled={loading}
-              className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${isDarkMode ? 'bg-white/10 text-gray-300 hover:bg-white/20' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'} disabled:opacity-50`}
+              className={`py-2 px-3 rounded-xl text-sm font-medium transition-colors border ${isDarkMode ? 'bg-white/5 text-gray-300 hover:bg-white/10 border-white/10' : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border-gray-200'} disabled:opacity-50`}
             >
               <ClockIcon size={16} className="inline mr-1" />
-              Lembrar em 7 dias
+              ⏰ Lembrar em 7 dias
             </button>
             
             <button
               onClick={handleDisableAutoBackup}
               disabled={loading}
-              className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${isDarkMode ? 'bg-white/10 text-gray-300 hover:bg-white/20' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'} disabled:opacity-50`}
+              className={`py-2 px-3 rounded-xl text-sm font-medium transition-colors border ${isDarkMode ? 'bg-white/5 text-gray-300 hover:bg-white/10 border-white/10' : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border-gray-200'} disabled:opacity-50`}
             >
-              Não mostrar mais
+              ❌ Não mostrar mais
             </button>
           </div>
         </div>
