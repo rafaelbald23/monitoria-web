@@ -390,7 +390,7 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
     console.log(`💾 Processando ${allOrders.length} pedidos em lote...`);
     
     // Preparar dados para operação em lote
-    const ordersToProcess = [];
+    const ordersToProcess: any[] = [];
     const statusParaBaixa = ['Faturado', 'Pronto para Envio', 'Enviado', 'Entregue'];
     
     for (const order of allOrders) {

@@ -165,75 +165,19 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
 
     console.log(`📦 Total de produtos encontrados: ${allProducts.length}`);
 
-    // Não importar estoque do Bling - todos os produtos começam com estoque zerado
-    console.log('📦 Produtos serão importados com estoque zerado');
-
     let imported = 0;
     let updated = 0;
 
-    // Processar produtos em lotes menores para melhor performance
-    const batchSize = 10;
-    for (let i = 0; i < allProducts.length; i += batchSize) {
-      const batch = allProducts.slice(i, i + batchSize);
-      
-      // Processar lote com delay mínimo
-      if (i > 0) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-      
-      for (const bp of batch) {
-        try {
-          const sku = bp.codigo || String(bp.id);
-          
-          // Buscar detalhes do produto individual para obter EAN/GTIN (apenas se necessário)
-          let ean = bp.gtin || bp.codigoBarras || null;
-          if (!ean) {
-            try {
-              // Delay reduzido para 150ms
-              await new Promise(resolve => setTimeout(resolve, 150));
-              
-              const detailResponse = await axios.get(`${BLING_API_URL}/produtos/${bp.id}`, {
-                headers: {
-                  Authorization: `Bearer ${accessToken}`,
-                  Accept: 'application/json',
-                },
-                timeout: 5000, // 5 segundos timeout
-              });
-              const productDetail = detailResponse.data?.data;
-              ean = productDetail?.gtin || productDetail?.codigoBarras || productDetail?.codigo_barras || null;
-            } catch (detailError) {
-              // Se falhar, continua sem EAN
-              console.log(`⚠️ Não foi possível buscar detalhes do produto ${bp.id}`);
-            }
-          }
-          }
-        }
-
-        // Buscar produto existente por SKU, EAN ou nome (evitar duplicatas)
-        // Prioridade: 1) SKU, 2) EAN, 3) Nome exato
-        let existing = null;
+    for (const bp of allProducts) {
+      try {
+        const sku = bp.codigo || String(bp.id);
         
-        // 1. Primeiro tenta por SKU (mais confiável)
-        if (sku) {
-          existing = await prisma.product.findUnique({
-            where: { sku },
-          });
-          if (existing) {
-            console.log(`🔍 Produto encontrado por SKU: ${sku} -> ${existing.name}`);
-          }
-        }
+        // Buscar produto existente por SKU primeiro
+        let existing = await prisma.product.findUnique({
+          where: { sku },
+        });
 
-        // 2. Se não encontrou por SKU, tenta por EAN
-        if (!existing && ean) {
-          existing = await prisma.product.findFirst({
-            where: { ean },
-          });
-          if (existing) {
-            console.log(`🔍 Produto encontrado por EAN: ${ean} -> ${existing.name}`);
-          }
-        }
-
-        // 3. Se não encontrou por SKU nem EAN, tenta por nome exato (case insensitive)
+        // Se não encontrou por SKU, buscar por nome
         if (!existing && bp.nome) {
           existing = await prisma.product.findFirst({
             where: { 
@@ -243,19 +187,13 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
               }
             },
           });
-          if (existing) {
-            console.log(`🔍 Produto encontrado por nome: "${bp.nome}" -> ${existing.name}`);
-          }
         }
 
         if (!existing) {
-          // Criar novo produto apenas se realmente não existir
-          console.log(`➕ Criando produto NOVO: ${bp.nome} (SKU: ${sku}, EAN: ${ean})`);
-          
+          // Criar novo produto
           const product = await prisma.product.create({
             data: {
               sku,
-              ean,
               name: bp.nome.trim(),
               salePrice: bp.preco || 0,
               isActive: true,
@@ -272,24 +210,9 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
             },
           });
 
-          console.log(`✅ Produto NOVO criado: ${bp.nome} (SKU: ${sku})`);
           imported++;
         } else {
-          // Produto já existe - apenas atualizar informações e criar mapping se necessário
-          console.log(`🔄 Produto EXISTENTE encontrado: ${existing.name} (ID: ${existing.id})`);
-          
-          // Atualizar informações do produto (preserva estoque)
-          await prisma.product.update({
-            where: { id: existing.id },
-            data: {
-              name: bp.nome.trim(), // Atualiza nome
-              ean: ean || existing.ean, // Atualiza EAN se vier do Bling
-              salePrice: bp.preco || existing.salePrice, // Atualiza preço
-              // SKU não é atualizado para evitar conflitos
-            },
-          });
-
-          // Verificar se já existe mapping para esta conta específica
+          // Produto já existe - verificar se precisa criar mapping
           const existingMapping = await prisma.productMapping.findFirst({
             where: {
               productId: existing.id,
@@ -297,7 +220,6 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
             },
           });
 
-          // Se não existe mapping para esta conta, criar
           if (!existingMapping) {
             await prisma.productMapping.create({
               data: {
@@ -307,21 +229,17 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
                 blingSku: sku,
               },
             });
-            console.log(`🔗 Mapping criado para produto existente: ${bp.nome} (conta: ${account.name})`);
-          } else {
-            console.log(`✅ Mapping já existe para produto: ${bp.nome} (conta: ${account.name})`);
           }
 
-          console.log(`🔄 Produto ATUALIZADO: ${bp.nome} (SKU: ${sku})`);
           updated++;
         }
+
+        // Delay para respeitar rate limit
+        await new Promise(resolve => setTimeout(resolve, 500));
       } catch (productError) {
-        console.log(`⚠️ Erro ao processar produto`);
+        console.log(`⚠️ Erro ao processar produto ${bp.nome || bp.id}`);
       }
     }
-    
-    console.log(`📦 Lote ${Math.floor(i/batchSize) + 1} processado (${batch.length} produtos)`);
-  }
 
     // Update last sync
     await prisma.blingAccount.update({
@@ -332,7 +250,6 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
       },
     });
 
-    console.log(`✅ Sincronização: ${imported} novos, ${updated} atualizados`);
     res.json({ success: true, imported, updated, total: allProducts.length });
   } catch (error: any) {
     console.error('❌ Erro ao sincronizar:', error.response?.data || error.message);
