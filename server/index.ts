@@ -13,6 +13,7 @@ import dashboardRoutes from './routes/dashboard.js';
 import blingRoutes from './routes/bling.js';
 import usersRoutes from './routes/users.js';
 import masterRoutes from './routes/master.js';
+import backupRoutes from './routes/backup.js';
 
 dotenv.config();
 
@@ -39,6 +40,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/bling', blingRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/master', masterRoutes);
+app.use('/api/backup', backupRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

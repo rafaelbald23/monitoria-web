@@ -200,6 +200,18 @@ export const api = {
     }),
   deleteClient: (id: string) =>
     request(`/master/clients/${id}`, { method: 'DELETE' }),
+
+  // Backup & Restore
+  createBackup: () =>
+    request('/backup/create', {
+      method: 'POST',
+    }),
+  restoreBackup: (backupData: any, replaceExisting = false) =>
+    request('/backup/restore', {
+      method: 'POST',
+      body: JSON.stringify({ backupData, replaceExisting }),
+    }),
+  listBackups: () => request('/backup/list'),
 };
 
 export default api;
