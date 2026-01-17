@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { useTheme } from '../hooks/useTheme';
 import api from '../lib/api';
-import { RefreshIcon, FilterIcon, PlusIcon, DollarIcon, ShoppingCartIcon } from '../components/Icons';
+import { RefreshIcon, FilterIcon, PlusIcon, DollarIcon, ShoppingCartIcon, AlertIcon } from '../components/Icons';
 import { ExportButton } from '../components/ExportButton';
 import { exportToCSV, exportToPDF, generateTableHTML } from '../utils/export';
 
@@ -35,6 +35,12 @@ export default function Sales() {
   const [syncing, setSyncing] = useState(false);
   const [filter, setFilter] = useState('all');
   const [stats, setStats] = useState({ totalOrders: 0, totalRevenue: 0, verified: 0, processed: 0 });
+  const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+
+  const showMessage = (type: 'success' | 'error' | 'info', text: string) => {
+    setMessage({ type, text });
+    setTimeout(() => setMessage(null), 5000);
+  };
 
   useEffect(() => {
     loadAccounts();
@@ -93,18 +99,49 @@ export default function Sales() {
     setSyncing(true);
     try {
       let totalSynced = 0;
+      let errors: string[] = [];
+      
       for (const account of accounts) {
         console.log('Sincronizando conta:', account.name, account.id);
-        const result = await api.getBlingOrders(account.id) as any;
-        console.log('Resultado sync:', result);
-        if (result.success && result.orders) {
-          totalSynced += result.orders.length;
+        try {
+          const result = await api.getBlingOrders(account.id) as any;
+          console.log('Resultado sync:', result);
+          
+          if (result.success) {
+            if (result.orders && result.orders.length > 0) {
+              totalSynced += result.orders.length;
+              console.log(`✅ ${result.orders.length} pedidos sincronizados da conta ${account.name}`);
+            } else {
+              console.log(`ℹ️ Nenhum pedido encontrado na conta ${account.name}`);
+            }
+          } else {
+            const errorMsg = result.error || 'Erro desconhecido';
+            errors.push(`${account.name}: ${errorMsg}`);
+            console.error(`❌ Erro na conta ${account.name}:`, errorMsg);
+          }
+        } catch (accountError: any) {
+          const errorMsg = accountError.message || 'Erro de conexão';
+          errors.push(`${account.name}: ${errorMsg}`);
+          console.error(`❌ Erro na conta ${account.name}:`, accountError);
         }
       }
+      
       console.log('Total sincronizado:', totalSynced);
+      
+      // Recarregar dados após sincronização
       await loadBlingOrders();
-    } catch (error) {
+      
+      // Mostrar resultado da sincronização
+      if (errors.length > 0) {
+        showMessage('error', `Erros na sincronização: ${errors.join('; ')}`);
+      } else if (totalSynced > 0) {
+        showMessage('success', `${totalSynced} pedidos sincronizados com sucesso!`);
+      } else {
+        showMessage('info', 'Sincronização concluída. Nenhum pedido novo encontrado.');
+      }
+    } catch (error: any) {
       console.error('Erro ao sincronizar:', error);
+      showMessage('error', `Erro geral na sincronização: ${error.message}`);
     } finally {
       setSyncing(false);
     }
@@ -219,6 +256,20 @@ export default function Sales() {
           </div>
         </div>
 
+        {/* Message Display */}
+        {message && (
+          <div className={`mb-6 p-4 rounded-xl flex items-center gap-3 ${
+            message.type === 'success' 
+              ? (isDarkMode ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-green-100 text-green-700 border border-green-200')
+              : message.type === 'error'
+              ? (isDarkMode ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-red-100 text-red-700 border border-red-200')
+              : (isDarkMode ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-blue-100 text-blue-700 border border-blue-200')
+          }`}>
+            <AlertIcon size={20} />
+            {message.text}
+          </div>
+        )}
+
         {/* Filter */}
         <div className="flex items-center gap-4 mb-4 flex-wrap">
           <div className="relative">
@@ -241,11 +292,19 @@ export default function Sales() {
             <RefreshIcon size={24} className="animate-spin mx-auto mb-2" />
             Carregando pedidos...
           </div>
+        ) : accounts.length === 0 ? (
+          <div className={"text-center py-16 rounded-2xl border " + (isDarkMode ? 'bg-white/5 border-white/10 text-gray-400' : 'bg-white border-gray-200 text-gray-500')}>
+            <ShoppingCartIcon size={48} className="mx-auto mb-4 opacity-50" />
+            <p className="mb-4">Nenhuma conta Bling conectada</p>
+            <button onClick={() => navigate('/accounts')} className="text-purple-500 hover:text-purple-400 font-medium">Conectar conta Bling</button>
+          </div>
         ) : filteredOrders.length === 0 ? (
           <div className={"text-center py-16 rounded-2xl border " + (isDarkMode ? 'bg-white/5 border-white/10 text-gray-400' : 'bg-white border-gray-200 text-gray-500')}>
             <ShoppingCartIcon size={48} className="mx-auto mb-4 opacity-50" />
             <p className="mb-4">Nenhum pedido encontrado</p>
-            <button onClick={handleSyncOrders} className="text-purple-500 hover:text-purple-400 font-medium">Sincronizar com Bling</button>
+            <button onClick={handleSyncOrders} disabled={syncing} className="text-purple-500 hover:text-purple-400 font-medium disabled:opacity-50">
+              {syncing ? 'Sincronizando...' : 'Sincronizar com Bling'}
+            </button>
           </div>
         ) : (
           <div className={"rounded-2xl border overflow-hidden " + (isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-200 shadow-sm')}>

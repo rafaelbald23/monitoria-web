@@ -173,12 +173,20 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
 
     for (const bp of allProducts) {
       try {
+        // Aguardar 200ms entre produtos para evitar rate limiting
+        if (allProducts.indexOf(bp) > 0) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+        
         const sku = bp.codigo || String(bp.id);
         
         // Buscar detalhes do produto individual para obter EAN/GTIN
         let ean = bp.gtin || bp.codigoBarras || null;
         if (!ean) {
           try {
+            // Aguardar 300ms antes de buscar detalhes para evitar rate limiting
+            await new Promise(resolve => setTimeout(resolve, 300));
+            
             const detailResponse = await axios.get(`${BLING_API_URL}/produtos/${bp.id}`, {
               headers: {
                 Authorization: `Bearer ${accessToken}`,
@@ -193,9 +201,29 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
           }
         }
 
-        const existing = await prisma.product.findUnique({
+        // Buscar produto existente por SKU, EAN ou nome (evitar duplicatas)
+        let existing = await prisma.product.findUnique({
           where: { sku },
         });
+
+        // Se não encontrou por SKU, tenta por EAN
+        if (!existing && ean) {
+          existing = await prisma.product.findFirst({
+            where: { ean },
+          });
+        }
+
+        // Se não encontrou por SKU nem EAN, tenta por nome similar
+        if (!existing) {
+          existing = await prisma.product.findFirst({
+            where: { 
+              name: {
+                equals: bp.nome,
+                mode: 'insensitive'
+              }
+            },
+          });
+        }
 
         if (!existing) {
           // Create new product with zero stock
@@ -219,7 +247,7 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
             },
           });
 
-          // Não criar movimento de estoque inicial - produto fica com estoque zerado
+          console.log(`✅ Produto NOVO criado: ${bp.nome} (SKU: ${sku})`);
           imported++;
         } else {
           // Update existing product (não mexe no estoque)
@@ -229,10 +257,32 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
               name: bp.nome,
               ean: ean || existing.ean, // Atualiza EAN se existir
               salePrice: bp.preco || 0,
+              sku: sku || existing.sku, // Atualiza SKU se necessário
             },
           });
 
-          // Não atualizar estoque - mantém o que já tem no sistema
+          // Verificar se já existe mapping para esta conta
+          const existingMapping = await prisma.productMapping.findFirst({
+            where: {
+              productId: existing.id,
+              accountId: id,
+            },
+          });
+
+          // Se não existe mapping, criar (produto existe mas veio de outra conta)
+          if (!existingMapping) {
+            await prisma.productMapping.create({
+              data: {
+                productId: existing.id,
+                accountId: id,
+                blingProductId: String(bp.id),
+                blingSku: sku,
+              },
+            });
+            console.log(`🔗 Mapping criado para produto existente: ${bp.nome} (conta: ${account.name})`);
+          }
+
+          console.log(`🔄 Produto ATUALIZADO: ${bp.nome} (SKU: ${sku})`);
           updated++;
         }
       } catch (productError) {

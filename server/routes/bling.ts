@@ -282,11 +282,12 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
 
     while (hasMore && page <= 10) {
       try {
-        // Aguardar 400ms entre requisições para respeitar limite de 3/segundo
+        // Aguardar 500ms entre requisições para respeitar limite de 3/segundo (mais conservador)
         if (page > 1) {
-          await new Promise(resolve => setTimeout(resolve, 400));
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
         
+        console.log(`🔍 Fazendo requisição para página ${page}...`);
         const response = await axios.get(`${BLING_API_URL}/pedidos/vendas?limite=100&pagina=${page}`, {
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -295,8 +296,15 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
         });
 
         console.log(`📄 Página ${page} - Status:`, response.status);
+        console.log(`📄 Página ${page} - Response data structure:`, Object.keys(response.data || {}));
+        
         const orders = response.data?.data || [];
         console.log(`📄 Página ${page} - Pedidos encontrados:`, orders.length);
+        
+        // Log primeiro pedido para debug
+        if (orders.length > 0) {
+          console.log(`📄 Exemplo de pedido:`, JSON.stringify(orders[0], null, 2));
+        }
         
         allOrders = allOrders.concat(orders);
 
@@ -307,12 +315,15 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
         }
       } catch (apiError: any) {
         console.error('❌ Erro na API Bling:', apiError.response?.status, apiError.response?.data);
+        console.error('❌ URL da requisição:', `${BLING_API_URL}/pedidos/vendas?limite=100&pagina=${page}`);
+        console.error('❌ Headers da requisição:', { Authorization: `Bearer ${accessToken.substring(0, 20)}...` });
+        
         lastError = apiError.response?.data?.error?.message || apiError.response?.data?.error?.description || `Erro ${apiError.response?.status}`;
         
         // Se for 429 (rate limit), aguarda e tenta novamente
         if (apiError.response?.status === 429) {
-          console.log('⏳ Rate limit atingido, aguardando 2 segundos...');
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          console.log('⏳ Rate limit atingido, aguardando 3 segundos...');
+          await new Promise(resolve => setTimeout(resolve, 3000));
           continue;
         }
         
@@ -336,7 +347,14 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
 
     // Se não encontrou pedidos e teve erro, retorna o erro
     if (allOrders.length === 0 && lastError) {
+      console.log('❌ Nenhum pedido encontrado e houve erro:', lastError);
       return res.json({ success: false, error: lastError });
+    }
+
+    // Se não encontrou pedidos mas não teve erro, pode ser que não existam pedidos
+    if (allOrders.length === 0) {
+      console.log('ℹ️ Nenhum pedido encontrado na conta Bling');
+      return res.json({ success: true, orders: [], message: 'Nenhum pedido encontrado na conta Bling' });
     }
 
     // Mapear status do Bling - baseado na API v3
@@ -419,6 +437,9 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
+
+    console.log(`📊 Pedidos salvos no banco: ${savedOrders.length}`);
+    console.log(`📊 Retornando ${savedOrders.length} pedidos para o frontend`);
 
     res.json({
       success: true,
