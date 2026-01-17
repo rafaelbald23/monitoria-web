@@ -282,9 +282,9 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
 
     while (hasMore && page <= 10) {
       try {
-        // Aguardar 500ms entre requisições para respeitar limite de 3/segundo (mais conservador)
+        // Reduzir delay para 200ms (5 req/segundo) - mais rápido mas ainda seguro
         if (page > 1) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise(resolve => setTimeout(resolve, 200));
         }
         
         console.log(`🔍 Fazendo requisição para página ${page}...`);
@@ -293,18 +293,13 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
             Authorization: `Bearer ${accessToken}`,
             Accept: 'application/json',
           },
+          timeout: 10000, // 10 segundos timeout
         });
 
         console.log(`📄 Página ${page} - Status:`, response.status);
-        console.log(`📄 Página ${page} - Response data structure:`, Object.keys(response.data || {}));
         
         const orders = response.data?.data || [];
         console.log(`📄 Página ${page} - Pedidos encontrados:`, orders.length);
-        
-        // Log primeiro pedido para debug
-        if (orders.length > 0) {
-          console.log(`📄 Exemplo de pedido:`, JSON.stringify(orders[0], null, 2));
-        }
         
         allOrders = allOrders.concat(orders);
 
@@ -315,15 +310,13 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
         }
       } catch (apiError: any) {
         console.error('❌ Erro na API Bling:', apiError.response?.status, apiError.response?.data);
-        console.error('❌ URL da requisição:', `${BLING_API_URL}/pedidos/vendas?limite=100&pagina=${page}`);
-        console.error('❌ Headers da requisição:', { Authorization: `Bearer ${accessToken.substring(0, 20)}...` });
         
         lastError = apiError.response?.data?.error?.message || apiError.response?.data?.error?.description || `Erro ${apiError.response?.status}`;
         
-        // Se for 429 (rate limit), aguarda e tenta novamente
+        // Se for 429 (rate limit), aguarda menos tempo
         if (apiError.response?.status === 429) {
-          console.log('⏳ Rate limit atingido, aguardando 3 segundos...');
-          await new Promise(resolve => setTimeout(resolve, 3000));
+          console.log('⏳ Rate limit atingido, aguardando 1 segundo...');
+          await new Promise(resolve => setTimeout(resolve, 1000));
           continue;
         }
         
@@ -394,6 +387,12 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
     };
 
     // Salvar/atualizar pedidos no banco e processar automaticamente se necessário
+    console.log(`💾 Processando ${allOrders.length} pedidos em lote...`);
+    
+    // Preparar dados para operação em lote
+    const ordersToProcess = [];
+    const statusParaBaixa = ['Faturado', 'Pronto para Envio', 'Enviado', 'Entregue'];
+    
     for (const order of allOrders) {
       try {
         // O status pode vir de diferentes formas na API v3
@@ -420,54 +419,72 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
           status = 'Aguardando Processamento';
         }
         
-        console.log(`📦 Pedido #${order.numero}: id=${statusId}, texto="${statusTexto}", final="${status}"`);
-        
-        // Verificar se o pedido já existe
-        const existingOrder = await prisma.blingOrder.findUnique({
-          where: {
-            blingOrderId_accountId: {
-              blingOrderId: String(order.id),
-              accountId: accountId,
-            },
-          },
+        ordersToProcess.push({
+          blingOrderId: String(order.id),
+          orderNumber: String(order.numero || order.id),
+          status,
+          customerName: order.contato?.nome || null,
+          totalAmount: order.total || 0,
+          items: JSON.stringify(order.itens || []),
+          blingCreatedAt: order.data ? new Date(order.data) : null,
+          needsProcessing: statusParaBaixa.includes(status)
         });
+      } catch (orderError: any) {
+        console.error(`❌ Erro ao preparar pedido ${order.numero}:`, orderError.message);
+      }
+    }
 
-        const savedOrder = await prisma.blingOrder.upsert({
-          where: {
-            blingOrderId_accountId: {
-              blingOrderId: String(order.id),
-              accountId: accountId,
+    // Processar pedidos em lote usando transação
+    let processedCount = 0;
+    let autoProcessedCount = 0;
+    
+    await prisma.$transaction(async (tx) => {
+      for (const orderData of ordersToProcess) {
+        try {
+          // Verificar se o pedido já existe
+          const existingOrder = await tx.blingOrder.findUnique({
+            where: {
+              blingOrderId_accountId: {
+                blingOrderId: orderData.blingOrderId,
+                accountId: accountId,
+              },
             },
-          },
-          update: {
-            status,
-            customerName: order.contato?.nome || null,
-            totalAmount: order.total || 0,
-            items: JSON.stringify(order.itens || []),
-            updatedAt: new Date(),
-          },
-          create: {
-            blingOrderId: String(order.id),
-            orderNumber: String(order.numero || order.id),
-            accountId,
-            userId,
-            status,
-            customerName: order.contato?.nome || null,
-            totalAmount: order.total || 0,
-            items: JSON.stringify(order.itens || []),
-            blingCreatedAt: order.data ? new Date(order.data) : null,
-          },
-        });
+          });
 
-        // 🚀 BAIXA AUTOMÁTICA NO ESTOQUE
-        // Status que indicam que o produto saiu (nota fiscal emitida, pronto para transportadora)
-        const statusParaBaixa = ['Faturado', 'Pronto para Envio', 'Enviado', 'Entregue'];
-        
-        if (statusParaBaixa.includes(status) && !savedOrder.isProcessed) {
-          console.log(`🔥 Processando baixa automática para pedido #${order.numero} (${status})`);
-          
-          try {
-            const items = JSON.parse(savedOrder.items);
+          const savedOrder = await tx.blingOrder.upsert({
+            where: {
+              blingOrderId_accountId: {
+                blingOrderId: orderData.blingOrderId,
+                accountId: accountId,
+              },
+            },
+            update: {
+              status: orderData.status,
+              customerName: orderData.customerName,
+              totalAmount: orderData.totalAmount,
+              items: orderData.items,
+              updatedAt: new Date(),
+            },
+            create: {
+              blingOrderId: orderData.blingOrderId,
+              orderNumber: orderData.orderNumber,
+              accountId,
+              userId,
+              status: orderData.status,
+              customerName: orderData.customerName,
+              totalAmount: orderData.totalAmount,
+              items: orderData.items,
+              blingCreatedAt: orderData.blingCreatedAt,
+            },
+          });
+
+          processedCount++;
+
+          // 🚀 BAIXA AUTOMÁTICA NO ESTOQUE (apenas se mudou de status)
+          if (orderData.needsProcessing && !savedOrder.isProcessed) {
+            console.log(`🔥 Processando baixa automática para pedido #${orderData.orderNumber} (${orderData.status})`);
+            
+            const items = JSON.parse(orderData.items);
             let produtosProcessados = 0;
 
             for (const item of items) {
@@ -477,32 +494,29 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
               if (!sku) continue;
 
               // Buscar produto pelo SKU
-              const product = await prisma.product.findUnique({
+              const product = await tx.product.findUnique({
                 where: { sku },
               });
 
               if (product) {
                 // Criar movimento de saída
-                await prisma.movement.create({
+                await tx.movement.create({
                   data: {
                     type: 'EXIT',
                     productId: product.id,
                     quantity: quantidade,
-                    reason: `Baixa automática - Pedido Bling #${order.numero} (${status})`,
+                    reason: `Baixa automática - Pedido Bling #${orderData.orderNumber} (${orderData.status})`,
                     userId,
                     syncStatus: 'synced',
                   },
                 });
                 
                 produtosProcessados++;
-                console.log(`✅ Baixa automática: ${product.name} (Qtd: ${quantidade})`);
-              } else {
-                console.log(`⚠️ Produto não encontrado para SKU: ${sku}`);
               }
             }
 
             // Marcar pedido como processado
-            await prisma.blingOrder.update({
+            await tx.blingOrder.update({
               where: { id: savedOrder.id },
               data: {
                 isProcessed: true,
@@ -510,15 +524,16 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
               },
             });
 
-            console.log(`🎉 Baixa automática concluída: ${produtosProcessados} produtos processados`);
-          } catch (processError: any) {
-            console.error(`❌ Erro na baixa automática do pedido #${order.numero}:`, processError.message);
+            autoProcessedCount++;
+            console.log(`✅ Baixa automática: ${produtosProcessados} produtos processados`);
           }
+        } catch (upsertError: any) {
+          console.error(`❌ Erro ao salvar pedido ${orderData.orderNumber}:`, upsertError.message);
         }
-      } catch (upsertError: any) {
-        console.error(`❌ Erro ao salvar pedido ${order.numero}:`, upsertError.message);
       }
-    }
+    });
+
+    console.log(`🎉 Processamento concluído: ${processedCount} pedidos, ${autoProcessedCount} com baixa automática`);
 
     // Retornar pedidos do banco
     const savedOrders = await prisma.blingOrder.findMany({

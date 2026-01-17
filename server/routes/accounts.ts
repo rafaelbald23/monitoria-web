@@ -171,33 +171,41 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
     let imported = 0;
     let updated = 0;
 
-    for (const bp of allProducts) {
-      try {
-        // Aguardar 200ms entre produtos para evitar rate limiting
-        if (allProducts.indexOf(bp) > 0) {
-          await new Promise(resolve => setTimeout(resolve, 200));
-        }
-        
-        const sku = bp.codigo || String(bp.id);
-        
-        // Buscar detalhes do produto individual para obter EAN/GTIN
-        let ean = bp.gtin || bp.codigoBarras || null;
-        if (!ean) {
-          try {
-            // Aguardar 300ms antes de buscar detalhes para evitar rate limiting
-            await new Promise(resolve => setTimeout(resolve, 300));
-            
-            const detailResponse = await axios.get(`${BLING_API_URL}/produtos/${bp.id}`, {
-              headers: {
-                Authorization: `Bearer ${accessToken}`,
-                Accept: 'application/json',
-              },
-            });
-            const productDetail = detailResponse.data?.data;
-            ean = productDetail?.gtin || productDetail?.codigoBarras || productDetail?.codigo_barras || null;
-          } catch (detailError) {
-            // Se falhar, continua sem EAN
-            console.log(`⚠️ Não foi possível buscar detalhes do produto ${bp.id}`);
+    // Processar produtos em lotes menores para melhor performance
+    const batchSize = 10;
+    for (let i = 0; i < allProducts.length; i += batchSize) {
+      const batch = allProducts.slice(i, i + batchSize);
+      
+      // Processar lote com delay mínimo
+      if (i > 0) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
+      for (const bp of batch) {
+        try {
+          const sku = bp.codigo || String(bp.id);
+          
+          // Buscar detalhes do produto individual para obter EAN/GTIN (apenas se necessário)
+          let ean = bp.gtin || bp.codigoBarras || null;
+          if (!ean) {
+            try {
+              // Delay reduzido para 150ms
+              await new Promise(resolve => setTimeout(resolve, 150));
+              
+              const detailResponse = await axios.get(`${BLING_API_URL}/produtos/${bp.id}`, {
+                headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                  Accept: 'application/json',
+                },
+                timeout: 5000, // 5 segundos timeout
+              });
+              const productDetail = detailResponse.data?.data;
+              ean = productDetail?.gtin || productDetail?.codigoBarras || productDetail?.codigo_barras || null;
+            } catch (detailError) {
+              // Se falhar, continua sem EAN
+              console.log(`⚠️ Não foi possível buscar detalhes do produto ${bp.id}`);
+            }
+          }
           }
         }
 
@@ -311,6 +319,9 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
         console.log(`⚠️ Erro ao processar produto`);
       }
     }
+    
+    console.log(`📦 Lote ${Math.floor(i/batchSize) + 1} processado (${batch.length} produtos)`);
+  }
 
     // Update last sync
     await prisma.blingAccount.update({

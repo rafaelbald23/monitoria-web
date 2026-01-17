@@ -101,8 +101,15 @@ export default function Sales() {
       let totalSynced = 0;
       let errors: string[] = [];
       
-      for (const account of accounts) {
+      showMessage('info', `Sincronizando ${accounts.length} conta(s)...`);
+      
+      for (let i = 0; i < accounts.length; i++) {
+        const account = accounts[i];
         console.log('Sincronizando conta:', account.name, account.id);
+        
+        // Mostrar progresso
+        showMessage('info', `Sincronizando ${account.name} (${i + 1}/${accounts.length})...`);
+        
         try {
           const result = await api.getBlingOrders(account.id) as any;
           console.log('Resultado sync:', result);
@@ -129,13 +136,14 @@ export default function Sales() {
       console.log('Total sincronizado:', totalSynced);
       
       // Recarregar dados após sincronização
+      showMessage('info', 'Atualizando lista de pedidos...');
       await loadBlingOrders();
       
       // Mostrar resultado da sincronização
       if (errors.length > 0) {
         showMessage('error', `Erros na sincronização: ${errors.join('; ')}`);
       } else if (totalSynced > 0) {
-        showMessage('success', `${totalSynced} pedidos sincronizados com sucesso!`);
+        showMessage('success', `🚀 ${totalSynced} pedidos sincronizados em tempo otimizado!`);
       } else {
         showMessage('info', 'Sincronização concluída. Nenhum pedido novo encontrado.');
       }
