@@ -453,9 +453,73 @@ router.get('/check-needed', authMiddleware, async (req: AuthRequest, res: Respon
   try {
     const userId = req.user!.userId;
     
-    // Por enquanto, sempre retorna que não precisa backup até implementarmos os campos
-    // TODO: Implementar após migração dos campos de backup
-    res.json({ needsBackup: false, reason: 'not_implemented' });
+    // Buscar informações do usuário
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        lastBackupAt: true,
+        backupFrequency: true,
+        skipBackupUntil: true,
+        autoBackupEnabled: true,
+        isMaster: true
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+
+    // Masters não precisam de backup automático
+    if (user.isMaster) {
+      return res.json({ needsBackup: false, reason: 'master_user' });
+    }
+
+    // Se backup automático está desabilitado
+    if (!user.autoBackupEnabled) {
+      return res.json({ needsBackup: false, reason: 'auto_backup_disabled' });
+    }
+
+    // Se está pulando backup até uma data específica
+    if (user.skipBackupUntil && new Date() < user.skipBackupUntil) {
+      return res.json({ 
+        needsBackup: false, 
+        reason: 'skipped_until',
+        skipUntil: user.skipBackupUntil
+      });
+    }
+
+    // Verificar se precisa fazer backup baseado na frequência
+    const now = new Date();
+    const backupFrequencyMs = (user.backupFrequency || 7) * 24 * 60 * 60 * 1000; // Converter dias para ms
+
+    if (!user.lastBackupAt) {
+      // Nunca fez backup
+      return res.json({ 
+        needsBackup: true, 
+        reason: 'never_backed_up',
+        daysSinceLastBackup: null
+      });
+    }
+
+    const timeSinceLastBackup = now.getTime() - user.lastBackupAt.getTime();
+    const daysSinceLastBackup = Math.floor(timeSinceLastBackup / (24 * 60 * 60 * 1000));
+
+    if (timeSinceLastBackup >= backupFrequencyMs) {
+      return res.json({ 
+        needsBackup: true, 
+        reason: 'frequency_exceeded',
+        daysSinceLastBackup,
+        frequencyDays: user.backupFrequency
+      });
+    }
+
+    // Não precisa fazer backup ainda
+    res.json({ 
+      needsBackup: false, 
+      reason: 'recent_backup',
+      daysSinceLastBackup,
+      nextBackupIn: Math.ceil((backupFrequencyMs - timeSinceLastBackup) / (24 * 60 * 60 * 1000))
+    });
 
   } catch (error) {
     console.error('❌ Erro ao verificar necessidade de backup:', error);
@@ -468,8 +532,16 @@ router.post('/update-date', authMiddleware, async (req: AuthRequest, res: Respon
   try {
     const userId = req.user!.userId;
     
-    // Por enquanto, apenas retorna sucesso
-    // TODO: Implementar após migração dos campos de backup
+    // Atualizar a data do último backup
+    await prisma.user.update({
+      where: { id: userId },
+      data: { 
+        lastBackupAt: new Date(),
+        skipBackupUntil: null // Limpar qualquer skip ativo
+      }
+    });
+
+    console.log(`✅ Data do backup atualizada para usuário ${userId}`);
     res.json({ success: true });
   } catch (error) {
     console.error('❌ Erro ao atualizar data do backup:', error);
@@ -482,9 +554,17 @@ router.post('/skip-7days', authMiddleware, async (req: AuthRequest, res: Respons
   try {
     const userId = req.user!.userId;
     
-    // Por enquanto, apenas retorna sucesso
-    // TODO: Implementar após migração dos campos de backup
-    res.json({ success: true });
+    // Definir data para pular backup por 7 dias
+    const skipUntil = new Date();
+    skipUntil.setDate(skipUntil.getDate() + 7);
+    
+    await prisma.user.update({
+      where: { id: userId },
+      data: { skipBackupUntil: skipUntil }
+    });
+
+    console.log(`✅ Backup pulado por 7 dias para usuário ${userId} até ${skipUntil.toISOString()}`);
+    res.json({ success: true, skipUntil });
   } catch (error) {
     console.error('❌ Erro ao pular backup:', error);
     res.status(500).json({ error: 'Erro ao pular backup' });
@@ -496,8 +576,16 @@ router.post('/disable-auto', authMiddleware, async (req: AuthRequest, res: Respo
   try {
     const userId = req.user!.userId;
     
-    // Por enquanto, apenas retorna sucesso
-    // TODO: Implementar após migração dos campos de backup
+    // Desabilitar backup automático
+    await prisma.user.update({
+      where: { id: userId },
+      data: { 
+        autoBackupEnabled: false,
+        skipBackupUntil: null // Limpar qualquer skip ativo
+      }
+    });
+
+    console.log(`✅ Backup automático desabilitado para usuário ${userId}`);
     res.json({ success: true });
   } catch (error) {
     console.error('❌ Erro ao desabilitar backup automático:', error);
