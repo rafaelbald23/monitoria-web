@@ -2,6 +2,9 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../hooks/useTheme';
 import { Logo } from './Logo';
+import BackupModal from './BackupModal';
+import { useState, useEffect } from 'react';
+import api from '../lib/api';
 import {
   DashboardIcon,
   PackageIcon,
@@ -33,10 +36,37 @@ export default function Layout({ children }: LayoutProps) {
   const { user, logout, hasPermission } = useAuth();
   const location = useLocation();
   const { isDarkMode, toggleTheme } = useTheme();
+  const [showBackupModal, setShowBackupModal] = useState(false);
 
   const isActive = (path: string) => location.pathname === path;
   const isMaster = user?.isMaster === true;
   const isOwner = user?.isOwner === true;
+
+  // Verificar se precisa mostrar modal de backup
+  useEffect(() => {
+    const checkBackupNeeded = async () => {
+      try {
+        // Só verificar para usuários normais (não master)
+        if (!isMaster && user?.id) {
+          const result: any = await api.checkBackupNeeded();
+          if (result.needsBackup) {
+            // Aguardar 2 segundos após o login para mostrar o modal
+            setTimeout(() => {
+              setShowBackupModal(true);
+            }, 2000);
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao verificar necessidade de backup:', error);
+      }
+    };
+
+    checkBackupNeeded();
+  }, [user?.id, isMaster]);
+
+  const handleBackupComplete = () => {
+    setShowBackupModal(false);
+  };
 
   const menuItems: MenuItem[] = [
     { path: '/dashboard', label: 'Dashboard', icon: <DashboardIcon size={20} />, permission: 'dashboard' },
@@ -168,6 +198,13 @@ export default function Layout({ children }: LayoutProps) {
       }`}>
         {children}
       </main>
+
+      {/* Backup Modal */}
+      <BackupModal
+        isOpen={showBackupModal}
+        onClose={() => setShowBackupModal(false)}
+        onBackupComplete={handleBackupComplete}
+      />
     </div>
   );
 }

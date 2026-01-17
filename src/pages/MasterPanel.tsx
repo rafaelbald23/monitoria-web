@@ -8,7 +8,7 @@ import { ExportButton } from '../components/ExportButton';
 import { exportToCSV, exportToPDF, generateTableHTML } from '../utils/export';
 import {
   RefreshIcon, PlusIcon, UserIcon, DollarIcon, AlertIcon,
-  CheckIcon, TrashIcon, LinkIcon
+  CheckIcon, TrashIcon, LinkIcon, DatabaseIcon, DownloadIcon
 } from '../components/Icons';
 
 interface Client {
@@ -58,6 +58,7 @@ export default function MasterPanel() {
     subscriptionPlan: 'basic', subscriptionEnd: '', monthlyValue: '', notes: '', maxEmployees: '3'
   });
   const [paymentData, setPaymentData] = useState({ amount: '', daysToAdd: '30', method: 'pix', notes: '' });
+  const [backupLoading, setBackupLoading] = useState<string | null>(null);
 
   useEffect(() => { checkAccess(); }, []);
 
@@ -164,6 +165,34 @@ export default function MasterPanel() {
       `Qualquer dúvida, estou à disposição!`;
     navigator.clipboard.writeText(text);
     showMessage('success', 'Credenciais copiadas!');
+  };
+
+  const handleClientBackup = async (client: Client) => {
+    setBackupLoading(client.id);
+    try {
+      const result: any = await api.createClientBackup(client.id);
+      if (result.success) {
+        // Fazer download do backup
+        const dataStr = JSON.stringify(result.backup, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = result.filename || `backup_${client.username}_${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        showMessage('success', `Backup de ${result.clientName} criado com sucesso! ${result.backup.summary.products} produtos, ${result.backup.summary.sales} vendas.`);
+      } else {
+        showMessage('error', result.error || 'Erro ao criar backup');
+      }
+    } catch (error: any) {
+      showMessage('error', error.message || 'Erro ao criar backup do cliente');
+    } finally {
+      setBackupLoading(null);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -421,6 +450,21 @@ export default function MasterPanel() {
                   className={`flex-1 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 ${isDarkMode ? 'bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'}`}
                 >
                   <LinkIcon size={16} /> Copiar
+                </button>
+                <button
+                  onClick={() => handleClientBackup(client)}
+                  disabled={backupLoading === client.id}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 ${isDarkMode ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'} disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  {backupLoading === client.id ? (
+                    <>
+                      <RefreshIcon size={16} className="animate-spin" /> Backup...
+                    </>
+                  ) : (
+                    <>
+                      <DatabaseIcon size={16} /> Backup
+                    </>
+                  )}
                 </button>
               </div>
 

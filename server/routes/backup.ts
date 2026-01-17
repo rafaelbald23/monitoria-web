@@ -448,4 +448,226 @@ router.get('/list', authMiddleware, async (req: AuthRequest, res: Response) => {
   }
 });
 
+// Verificar se precisa fazer backup
+router.get('/check-needed', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    
+    // Por enquanto, sempre retorna que não precisa backup até implementarmos os campos
+    // TODO: Implementar após migração dos campos de backup
+    res.json({ needsBackup: false, reason: 'not_implemented' });
+
+  } catch (error) {
+    console.error('❌ Erro ao verificar necessidade de backup:', error);
+    res.status(500).json({ error: 'Erro ao verificar backup' });
+  }
+});
+
+// Atualizar data do último backup
+router.post('/update-date', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    
+    // Por enquanto, apenas retorna sucesso
+    // TODO: Implementar após migração dos campos de backup
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Erro ao atualizar data do backup:', error);
+    res.status(500).json({ error: 'Erro ao atualizar data do backup' });
+  }
+});
+
+// Pular backup por 7 dias
+router.post('/skip-7days', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    
+    // Por enquanto, apenas retorna sucesso
+    // TODO: Implementar após migração dos campos de backup
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Erro ao pular backup:', error);
+    res.status(500).json({ error: 'Erro ao pular backup' });
+  }
+});
+
+// Desabilitar backup automático
+router.post('/disable-auto', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    
+    // Por enquanto, apenas retorna sucesso
+    // TODO: Implementar após migração dos campos de backup
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Erro ao desabilitar backup automático:', error);
+    res.status(500).json({ error: 'Erro ao desabilitar backup automático' });
+  }
+});
+
+// Criar backup de um cliente específico (para master)
+router.post('/client/:clientId', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { clientId } = req.params;
+    const userId = req.user!.userId;
+
+    // Verificar se é master
+    const masterUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { isMaster: true }
+    });
+
+    if (!masterUser?.isMaster) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    // Verificar se o cliente existe
+    const client = await prisma.user.findUnique({
+      where: { id: clientId },
+      select: { id: true, username: true, name: true }
+    });
+
+    if (!client) {
+      return res.status(404).json({ error: 'Cliente não encontrado' });
+    }
+
+    console.log(`📦 Master criando backup para cliente: ${client.name} (${client.username})`);
+
+    // Usar a mesma lógica do backup normal, mas para o cliente específico
+    const userData = await prisma.user.findUnique({
+      where: { id: clientId },
+      select: {
+        id: true,
+        username: true,
+        name: true,
+        email: true,
+        role: true,
+        companyName: true,
+        phone: true,
+        permissions: true,
+        createdAt: true,
+      }
+    });
+
+    // Buscar todos os dados do cliente (mesmo código do backup normal)
+    const blingAccounts = await prisma.blingAccount.findMany({
+      where: { userId: clientId },
+      select: {
+        id: true,
+        name: true,
+        clientId: true,
+        isActive: true,
+        syncStatus: true,
+        lastSync: true,
+        createdAt: true,
+      }
+    });
+
+    const products = await prisma.product.findMany({
+      select: {
+        id: true,
+        sku: true,
+        ean: true,
+        internalCode: true,
+        name: true,
+        description: true,
+        unit: true,
+        minimumStock: true,
+        category: true,
+        costPrice: true,
+        salePrice: true,
+        profitMargin: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+      }
+    });
+
+    const movements = await prisma.movement.findMany({
+      where: { userId: clientId },
+      select: {
+        id: true,
+        type: true,
+        productId: true,
+        accountId: true,
+        quantity: true,
+        previousQty: true,
+        newQty: true,
+        reason: true,
+        supplier: true,
+        customer: true,
+        notes: true,
+        relatedMovement: true,
+        saleId: true,
+        createdAt: true,
+      }
+    });
+
+    const sales = await prisma.sale.findMany({
+      where: { userId: clientId },
+      include: {
+        items: {
+          select: {
+            id: true,
+            productId: true,
+            quantity: true,
+            unitPrice: true,
+            discount: true,
+            totalPrice: true,
+          }
+        },
+        payments: {
+          select: {
+            id: true,
+            method: true,
+            amount: true,
+            installments: true,
+            installmentValue: true,
+            paidAt: true,
+          }
+        }
+      }
+    });
+
+    // Montar objeto de backup
+    const backupData = {
+      version: '1.0',
+      createdAt: new Date().toISOString(),
+      createdBy: 'master',
+      userId: clientId,
+      userData,
+      blingAccounts,
+      products,
+      movements,
+      sales,
+      summary: {
+        products: products.length,
+        movements: movements.length,
+        sales: sales.length,
+        blingAccounts: blingAccounts.length,
+      }
+    };
+
+    // Atualizar data do último backup do cliente
+    // TODO: Implementar após migração dos campos de backup
+    // await prisma.user.update({
+    //   where: { id: clientId },
+    //   data: { lastBackupAt: new Date() }
+    // });
+
+    console.log(`✅ Backup do cliente criado:`, backupData.summary);
+
+    res.json({
+      success: true,
+      backup: backupData,
+      filename: `backup_${client.username}_master_${new Date().toISOString().split('T')[0]}.json`,
+      clientName: client.name
+    });
+
+  } catch (error) {
+    console.error('❌ Erro ao criar backup do cliente:', error);
+    res.status(500).json({ error: 'Erro ao criar backup do cliente' });
+  }
+});
+
 export default router;

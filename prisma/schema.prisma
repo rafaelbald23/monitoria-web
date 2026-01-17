@@ -40,6 +40,12 @@ model User {
   // Permissões disponíveis: dashboard, products, sales, newSale, accounts, reports, settings, users
   permissions       String?   // Ex: '["dashboard","products","sales"]'
 
+  // Campos para controle de backup
+  lastBackupAt      DateTime? // Último backup feito
+  backupFrequency   Int       @default(7) // Frequência em dias para sugerir backup
+  skipBackupUntil   DateTime? // Pular sugestão de backup até esta data
+  autoBackupEnabled Boolean   @default(true) // Se deve sugerir backup automático
+
   owner             User?     @relation("EmployeeOwner", fields: [ownerId], references: [id])
   employees         User[]    @relation("EmployeeOwner")
 

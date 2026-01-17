@@ -212,6 +212,27 @@ export const api = {
       body: JSON.stringify({ backupData, replaceExisting }),
     }),
   listBackups: () => request('/backup/list'),
+  
+  // Backup control
+  checkBackupNeeded: () => request('/backup/check-needed'),
+  updateBackupDate: () =>
+    request('/backup/update-date', {
+      method: 'POST',
+    }),
+  skipBackupFor7Days: () =>
+    request('/backup/skip-7days', {
+      method: 'POST',
+    }),
+  disableAutoBackup: () =>
+    request('/backup/disable-auto', {
+      method: 'POST',
+    }),
+  
+  // Master backup functions
+  createClientBackup: (clientId: string) =>
+    request(`/backup/client/${clientId}`, {
+      method: 'POST',
+    }),
 };
 
 export default api;
