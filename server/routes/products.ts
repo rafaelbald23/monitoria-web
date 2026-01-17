@@ -128,12 +128,13 @@ router.get('/search', authMiddleware, async (req: AuthRequest, res: Response) =>
 // Create product
 router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
-    const { sku, name, price, stock, accountId } = req.body;
+    const { sku, ean, name, price, stock, accountId } = req.body;
     const userId = req.user!.userId;
 
     const product = await prisma.product.create({
       data: {
         sku,
+        ean: ean || null,
         name,
         salePrice: price || 0,
         isActive: true,
@@ -181,7 +182,7 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
 router.put('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { sku, name, price, stock } = req.body;
+    const { sku, ean, name, price, stock } = req.body;
     const userId = req.user!.userId;
 
     // Verificar se o produto pertence ao usuário
@@ -206,6 +207,7 @@ router.put('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
       where: { id },
       data: {
         sku,
+        ean: ean || null,
         name,
         salePrice: price || 0,
       },

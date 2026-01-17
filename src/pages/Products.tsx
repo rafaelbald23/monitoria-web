@@ -36,6 +36,7 @@ export default function Products() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [formData, setFormData] = useState({
     sku: '',
+    ean: '',
     name: '',
     price: '',
     stock: '',
@@ -128,6 +129,7 @@ export default function Products() {
       
       const productData = {
         sku: formData.sku,
+        ean: formData.ean,
         name: formData.name,
         price: parsePriceToNumber(formData.price),
         stock: parseInt(formData.stock),
@@ -157,6 +159,7 @@ export default function Products() {
   const resetForm = () => {
     setFormData({ 
       sku: '', 
+      ean: '',
       name: '', 
       price: 'R$ 0,00', 
       stock: '', 
@@ -168,6 +171,7 @@ export default function Products() {
     setEditingProduct(product);
     setFormData({
       sku: product.sku || '',
+      ean: product.ean || '',
       name: product.name || '',
       price: (product.price || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
       stock: (product.stock || 0).toString(),
@@ -365,6 +369,11 @@ export default function Products() {
                 <div>
                   <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>SKU *</label>
                   <input type="text" value={formData.sku} onChange={(e) => setFormData({ ...formData, sku: e.target.value })} className={`w-full rounded-xl px-4 py-3 border outline-none transition-colors ${isDarkMode ? 'bg-white/5 border-white/10 text-white focus:border-purple-500' : 'bg-white border-gray-300 text-gray-900 focus:border-purple-500'}`} placeholder="Ex: PROD001" required />
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Código EAN (Código de Barras)</label>
+                  <input type="text" value={formData.ean} onChange={(e) => setFormData({ ...formData, ean: e.target.value })} className={`w-full rounded-xl px-4 py-3 border outline-none transition-colors ${isDarkMode ? 'bg-white/5 border-white/10 text-white focus:border-purple-500' : 'bg-white border-gray-300 text-gray-900 focus:border-purple-500'}`} placeholder="Ex: 7891234567890" />
+                  <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Código de barras do produto (opcional)</p>
                 </div>
                 <div>
                   <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Nome do Produto *</label>
