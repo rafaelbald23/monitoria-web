@@ -111,7 +111,7 @@ export default function Dashboard() {
     try {
       setLoading(true);
       const { startDate, endDate } = getDateRange();
-      const data = await api.getDashboardStats(startDate, endDate);
+      const data = await api.getDashboardStats(startDate, endDate) as DashboardStats;
       setStats(data);
     } catch (error) {
       console.error('Erro ao carregar dados do dashboard:', error);
