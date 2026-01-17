@@ -165,39 +165,8 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
 
     console.log(`📦 Total de produtos encontrados: ${allProducts.length}`);
 
-    // Fetch stock data
-    let stockMap: Record<string, number> = {};
-    try {
-      let stockPage = 1;
-      let hasMoreStock = true;
-
-      while (hasMoreStock) {
-        const stockResponse = await axios.get(`${BLING_API_URL}/estoques/saldos?limite=100&pagina=${stockPage}`, {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            Accept: 'application/json',
-          },
-        });
-
-        const stocks = stockResponse.data?.data || [];
-
-        for (const s of stocks) {
-          if (s.produto?.id) {
-            stockMap[s.produto.id] = s.saldoFisicoTotal || s.saldoVirtualTotal || 0;
-          }
-        }
-
-        if (stocks.length < 100) {
-          hasMoreStock = false;
-        } else {
-          stockPage++;
-        }
-
-        if (stockPage > 50) hasMoreStock = false;
-      }
-    } catch (stockError) {
-      console.log('⚠️ Não foi possível buscar estoques');
-    }
+    // Não importar estoque do Bling - todos os produtos começam com estoque zerado
+    console.log('📦 Produtos serão importados com estoque zerado');
 
     let imported = 0;
     let updated = 0;
@@ -223,15 +192,13 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
             console.log(`⚠️ Não foi possível buscar detalhes do produto ${bp.id}`);
           }
         }
-        
-        const stock = stockMap[bp.id] || bp.estoque?.saldoVirtualTotal || 0;
 
         const existing = await prisma.product.findUnique({
           where: { sku },
         });
 
         if (!existing) {
-          // Create new product
+          // Create new product with zero stock
           const product = await prisma.product.create({
             data: {
               sku,
@@ -252,23 +219,10 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
             },
           });
 
-          // Create initial stock movement
-          if (stock > 0) {
-            await prisma.movement.create({
-              data: {
-                type: 'ENTRY',
-                productId: product.id,
-                quantity: Math.round(stock),
-                reason: 'Importado do Bling',
-                userId,
-                syncStatus: 'synced',
-              },
-            });
-          }
-
+          // Não criar movimento de estoque inicial - produto fica com estoque zerado
           imported++;
         } else {
-          // Update existing product
+          // Update existing product (não mexe no estoque)
           await prisma.product.update({
             where: { id: existing.id },
             data: {
@@ -278,29 +232,7 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
             },
           });
 
-          // Update stock if changed
-          const movements = await prisma.movement.findMany({
-            where: { productId: existing.id },
-          });
-
-          const currentStock = movements.reduce((sum, m) => {
-            return m.type === 'ENTRY' ? sum + m.quantity : sum - m.quantity;
-          }, 0);
-
-          const diff = Math.round(stock) - currentStock;
-          if (diff !== 0) {
-            await prisma.movement.create({
-              data: {
-                type: diff > 0 ? 'ENTRY' : 'EXIT',
-                productId: existing.id,
-                quantity: Math.abs(diff),
-                reason: 'Sincronizado do Bling',
-                userId,
-                syncStatus: 'synced',
-              },
-            });
-          }
-
+          // Não atualizar estoque - mantém o que já tem no sistema
           updated++;
         }
       } catch (productError) {
