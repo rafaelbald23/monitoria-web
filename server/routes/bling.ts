@@ -358,7 +358,7 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
     }
 
     // Mapear status do Bling - baseado na API v3
-    // Se o ID não estiver mapeado, usa o valor texto que vem da API
+    // Mapeamento completo dos status do Bling para evitar "Sem Status"
     const statusMap: Record<number, string> = {
       0: 'Em Aberto',
       1: 'Atendido',
@@ -376,6 +376,21 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
       13: 'Pendente',
       14: 'Faturado',
       15: 'Pronto',
+      16: 'Impresso',
+      17: 'Separado',
+      18: 'Embalado',
+      19: 'Coletado',
+      20: 'Em Trânsito',
+      21: 'Devolvido',
+      22: 'Extraviado',
+      23: 'Tentativa de Entrega',
+      24: 'Reagendado',
+      25: 'Bloqueado',
+      26: 'Suspenso',
+      27: 'Processando',
+      28: 'Aprovado',
+      29: 'Reprovado',
+      30: 'Estornado',
     };
 
     // Salvar/atualizar pedidos no banco e processar automaticamente se necessário
@@ -385,20 +400,27 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
         const statusId = order.situacao?.id;
         const statusTexto = order.situacao?.valor || order.situacao?.nome || order.situacao?.descricao || '';
         
-        // Usa o mapeamento se existir, senão usa o texto, senão "Sem Status"
+        // Lógica melhorada para mapear status - NUNCA retorna "Sem Status"
         let status: string;
+        
+        // 1. Primeiro tenta pelo ID (mais confiável)
         if (statusId !== undefined && statusMap[statusId]) {
           status = statusMap[statusId];
-        } else if (statusTexto && typeof statusTexto === 'string' && statusTexto.length > 0) {
-          status = statusTexto;
-        } else if (statusId !== undefined) {
-          // Se tem ID mas não tem texto, mapeia os mais comuns
-          status = statusId === 11 ? 'Enviado' : statusId === 12 ? 'Pronto para Envio' : 'Sem Status';
-        } else {
-          status = 'Sem Status';
+        }
+        // 2. Se não tem ID ou não está mapeado, usa o texto da API
+        else if (statusTexto && typeof statusTexto === 'string' && statusTexto.trim().length > 0) {
+          status = statusTexto.trim();
+        }
+        // 3. Se tem ID mas não está no mapeamento, cria um status descritivo
+        else if (statusId !== undefined) {
+          status = `Status ${statusId}`;
+        }
+        // 4. Último recurso - status padrão mais descritivo
+        else {
+          status = 'Aguardando Processamento';
         }
         
-        console.log(`📦 Pedido #${order.numero}: id=${statusId}, texto=${statusTexto}, final=${status}`);
+        console.log(`📦 Pedido #${order.numero}: id=${statusId}, texto="${statusTexto}", final="${status}"`);
         
         // Verificar se o pedido já existe
         const existingOrder = await prisma.blingOrder.findUnique({
