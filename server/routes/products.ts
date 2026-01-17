@@ -41,6 +41,8 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
       orderBy: { name: 'asc' },
     });
 
+    console.log(`📊 Produtos encontrados para usuário ${userId}: ${products.length}`);
+    
     const result = products.map((p) => {
       const stock = p.movements.reduce((sum, m) => {
         return m.type === 'ENTRY' ? sum + m.quantity : sum - m.quantity;

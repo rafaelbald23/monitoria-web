@@ -202,42 +202,59 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
         }
 
         // Buscar produto existente por SKU, EAN ou nome (evitar duplicatas)
-        let existing = await prisma.product.findUnique({
-          where: { sku },
-        });
+        // Prioridade: 1) SKU, 2) EAN, 3) Nome exato
+        let existing = null;
+        
+        // 1. Primeiro tenta por SKU (mais confiável)
+        if (sku) {
+          existing = await prisma.product.findUnique({
+            where: { sku },
+          });
+          if (existing) {
+            console.log(`🔍 Produto encontrado por SKU: ${sku} -> ${existing.name}`);
+          }
+        }
 
-        // Se não encontrou por SKU, tenta por EAN
+        // 2. Se não encontrou por SKU, tenta por EAN
         if (!existing && ean) {
           existing = await prisma.product.findFirst({
             where: { ean },
           });
+          if (existing) {
+            console.log(`🔍 Produto encontrado por EAN: ${ean} -> ${existing.name}`);
+          }
         }
 
-        // Se não encontrou por SKU nem EAN, tenta por nome similar
-        if (!existing) {
+        // 3. Se não encontrou por SKU nem EAN, tenta por nome exato (case insensitive)
+        if (!existing && bp.nome) {
           existing = await prisma.product.findFirst({
             where: { 
               name: {
-                equals: bp.nome,
+                equals: bp.nome.trim(),
                 mode: 'insensitive'
               }
             },
           });
+          if (existing) {
+            console.log(`🔍 Produto encontrado por nome: "${bp.nome}" -> ${existing.name}`);
+          }
         }
 
         if (!existing) {
-          // Create new product with zero stock
+          // Criar novo produto apenas se realmente não existir
+          console.log(`➕ Criando produto NOVO: ${bp.nome} (SKU: ${sku}, EAN: ${ean})`);
+          
           const product = await prisma.product.create({
             data: {
               sku,
               ean,
-              name: bp.nome,
+              name: bp.nome.trim(),
               salePrice: bp.preco || 0,
               isActive: true,
             },
           });
 
-          // Create mapping
+          // Criar mapping para esta conta
           await prisma.productMapping.create({
             data: {
               productId: product.id,
@@ -250,18 +267,21 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
           console.log(`✅ Produto NOVO criado: ${bp.nome} (SKU: ${sku})`);
           imported++;
         } else {
-          // Update existing product (não mexe no estoque)
+          // Produto já existe - apenas atualizar informações e criar mapping se necessário
+          console.log(`🔄 Produto EXISTENTE encontrado: ${existing.name} (ID: ${existing.id})`);
+          
+          // Atualizar informações do produto (preserva estoque)
           await prisma.product.update({
             where: { id: existing.id },
             data: {
-              name: bp.nome,
-              ean: ean || existing.ean, // Atualiza EAN se existir
-              salePrice: bp.preco || 0,
-              sku: sku || existing.sku, // Atualiza SKU se necessário
+              name: bp.nome.trim(), // Atualiza nome
+              ean: ean || existing.ean, // Atualiza EAN se vier do Bling
+              salePrice: bp.preco || existing.salePrice, // Atualiza preço
+              // SKU não é atualizado para evitar conflitos
             },
           });
 
-          // Verificar se já existe mapping para esta conta
+          // Verificar se já existe mapping para esta conta específica
           const existingMapping = await prisma.productMapping.findFirst({
             where: {
               productId: existing.id,
@@ -269,7 +289,7 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
             },
           });
 
-          // Se não existe mapping, criar (produto existe mas veio de outra conta)
+          // Se não existe mapping para esta conta, criar
           if (!existingMapping) {
             await prisma.productMapping.create({
               data: {
@@ -280,6 +300,8 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
               },
             });
             console.log(`🔗 Mapping criado para produto existente: ${bp.nome} (conta: ${account.name})`);
+          } else {
+            console.log(`✅ Mapping já existe para produto: ${bp.nome} (conta: ${account.name})`);
           }
 
           console.log(`🔄 Produto ATUALIZADO: ${bp.nome} (SKU: ${sku})`);
