@@ -117,19 +117,19 @@ export default function Sales() {
           if (result.success) {
             if (result.orders && result.orders.length > 0) {
               totalSynced += result.orders.length;
-              console.log(`✅ ${result.orders.length} pedidos sincronizados da conta ${account.name}`);
+              console.log(`Sincronizados ${result.orders.length} pedidos da conta ${account.name}`);
             } else {
-              console.log(`ℹ️ Nenhum pedido encontrado na conta ${account.name}`);
+              console.log(`Nenhum pedido encontrado na conta ${account.name}`);
             }
           } else {
             const errorMsg = result.error || 'Erro desconhecido';
             errors.push(`${account.name}: ${errorMsg}`);
-            console.error(`❌ Erro na conta ${account.name}:`, errorMsg);
+            console.error(`Erro na conta ${account.name}:`, errorMsg);
           }
         } catch (accountError: any) {
           const errorMsg = accountError.message || 'Erro de conexão';
           errors.push(`${account.name}: ${errorMsg}`);
-          console.error(`❌ Erro na conta ${account.name}:`, accountError);
+          console.error(`Erro na conta ${account.name}:`, accountError);
         }
       }
       
@@ -143,7 +143,7 @@ export default function Sales() {
       if (errors.length > 0) {
         showMessage('error', `Erros na sincronização: ${errors.join('; ')}`);
       } else if (totalSynced > 0) {
-        showMessage('success', `🚀 ${totalSynced} pedidos sincronizados em tempo otimizado!`);
+        showMessage('success', `${totalSynced} pedidos sincronizados em tempo otimizado!`);
       } else {
         showMessage('info', 'Sincronização concluída. Nenhum pedido novo encontrado.');
       }

@@ -76,7 +76,7 @@ router.get('/callback', async (req: Request, res: Response) => {
       return res.send(`
         <html>
           <body style="font-family:Arial;text-align:center;padding:50px;">
-            <h1 style="color:red;">❌ Erro</h1>
+            <h1 style="color:red;">Erro</h1>
             <p>${error}</p>
             <script>setTimeout(() => window.close(), 3000);</script>
           </body>
@@ -89,7 +89,7 @@ router.get('/callback', async (req: Request, res: Response) => {
       return res.send(`
         <html>
           <body style="font-family:Arial;text-align:center;padding:50px;">
-            <h1 style="color:red;">❌ Erro</h1>
+            <h1 style="color:red;">Erro</h1>
             <p>State inválido ou expirado</p>
           </body>
         </html>
@@ -107,7 +107,7 @@ router.get('/callback', async (req: Request, res: Response) => {
       return res.send(`
         <html>
           <body style="font-family:Arial;text-align:center;padding:50px;">
-            <h1 style="color:red;">❌ Erro</h1>
+            <h1 style="color:red;">Erro</h1>
             <p>Conta não encontrada</p>
           </body>
         </html>
@@ -152,7 +152,7 @@ router.get('/callback', async (req: Request, res: Response) => {
       <html>
         <body style="font-family:Arial;text-align:center;padding:50px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;min-height:100vh;margin:0;">
           <div style="background:white;color:#333;padding:40px;border-radius:20px;display:inline-block;margin-top:50px;">
-            <h1 style="color:#22c55e;">✅ Conectado!</h1>
+            <h1 style="color:#22c55e;">Conectado!</h1>
             <p>Pode fechar esta janela e voltar ao sistema.</p>
             <script>
               setTimeout(() => {
@@ -169,7 +169,7 @@ router.get('/callback', async (req: Request, res: Response) => {
     res.send(`
       <html>
         <body style="font-family:Arial;text-align:center;padding:50px;">
-          <h1 style="color:red;">❌ Erro</h1>
+          <h1 style="color:red;">Erro</h1>
           <p>${error.response?.data?.error_description || error.message}</p>
         </body>
       </html>
@@ -247,18 +247,18 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
     const { accountId } = req.params;
     const userId = req.user!.userId;
 
-    console.log('🔍 Buscando pedidos para conta:', accountId, 'usuário:', userId);
+    console.log('Buscando pedidos para conta:', accountId, 'usuário:', userId);
 
     const account = await prisma.blingAccount.findFirst({
       where: { id: accountId, userId },
     });
 
     if (!account || !account.accessToken) {
-      console.log('❌ Conta não conectada ou sem token');
+      console.log('Conta não conectada ou sem token');
       return res.json({ success: false, error: 'Conta não conectada' });
     }
 
-    console.log('✅ Conta encontrada:', account.name);
+    console.log('Conta encontrada:', account.name);
 
     // Check if token expired and refresh if needed
     let accessToken = account.accessToken;

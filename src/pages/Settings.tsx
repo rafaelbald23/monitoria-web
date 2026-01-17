@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import { useTheme } from '../hooks/useTheme';
 import api from '../lib/api';
-import { LockIcon, EyeIcon, EyeOffIcon, CheckIcon, UsersIcon, CalendarIcon, DatabaseIcon, DownloadIcon, UploadIcon, ShieldIcon } from '../components/Icons';
+import { LockIcon, EyeIcon, EyeOffIcon, CheckIcon, UsersIcon, CalendarIcon, DatabaseIcon, DownloadIcon, UploadIcon, ShieldIcon, BuildingIcon, FileTextIcon, InfoIcon, KeyIcon, StarIcon } from '../components/Icons';
 
 interface UserInfo {
   id: string;
@@ -117,7 +117,7 @@ export default function Settings() {
 
         setBackupMessage({ 
           type: 'success', 
-          text: `Backup criado com sucesso! 📦 ${result.backup.summary.products} produtos, 👥 ${result.backup.summary.customers} clientes salvos.` 
+          text: `Backup criado com sucesso! ${result.backup.summary.products} produtos, ${result.backup.summary.customers} clientes salvos.` 
         });
       } else {
         setBackupMessage({ type: 'error', text: result.error || 'Erro ao criar backup' });
@@ -192,7 +192,7 @@ export default function Settings() {
               <ShieldIcon size={28} className={isDarkMode ? 'text-purple-400' : 'text-purple-600'} />
             </div>
             <div>
-              <h1 className={`text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>⚙️ Configurações</h1>
+              <h1 className={`text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Configurações</h1>
               <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                 Gerencie sua conta, segurança e dados
               </p>
@@ -213,7 +213,7 @@ export default function Settings() {
                   </div>
                   <div>
                     <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                      👤 {userInfo.name}
+                      {userInfo.name}
                     </h2>
                     <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                       @{userInfo.username}
@@ -227,7 +227,7 @@ export default function Settings() {
                       <UsersIcon size={20} className={isDarkMode ? 'text-cyan-400' : 'text-cyan-600'} />
                       <div>
                         <p className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                          👥 Funcionários
+                          Funcionários
                         </p>
                         <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                           Limite do seu plano
@@ -250,7 +250,7 @@ export default function Settings() {
                       <CalendarIcon size={20} className={isDarkMode ? 'text-purple-400' : 'text-purple-600'} />
                       <div>
                         <p className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                          📋 Plano: {getPlanLabel(userInfo.subscriptionPlan)}
+                          Plano: {getPlanLabel(userInfo.subscriptionPlan)}
                         </p>
                         <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                           Válido até: {formatDate(userInfo.subscriptionEnd)}
@@ -261,7 +261,10 @@ export default function Settings() {
 
                   {userInfo.companyName && (
                     <div className="py-3 px-4 rounded-xl bg-gradient-to-r from-green-500/10 to-blue-500/10">
-                      <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>🏢 Empresa</p>
+                      <div className="flex items-center gap-2 mb-1">
+                        <BuildingIcon size={16} className={isDarkMode ? 'text-green-400' : 'text-green-600'} />
+                        <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Empresa</p>
+                      </div>
                       <p className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{userInfo.companyName}</p>
                     </div>
                   )}
@@ -276,7 +279,7 @@ export default function Settings() {
                   <DatabaseIcon size={24} className={isDarkMode ? 'text-cyan-400' : 'text-cyan-600'} />
                 </div>
                 <div>
-                  <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>💾 Backup e Restauração</h2>
+                  <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Backup e Restauração</h2>
                   <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Proteja seus dados importantes</p>
                 </div>
               </div>
@@ -290,9 +293,9 @@ export default function Settings() {
               <div className="space-y-4">
                 {/* Criar Backup */}
                 <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
-                  <h3 className={`font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>💾 Criar Backup</h3>
+                  <h3 className={`font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Criar Backup</h3>
                   <p className={`text-sm mb-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                    📦 Baixe todos os seus dados em um arquivo seguro
+                    Baixe todos os seus dados em um arquivo seguro
                   </p>
                   <button
                     onClick={handleCreateBackup}
@@ -300,11 +303,11 @@ export default function Settings() {
                     className="w-full py-3 px-4 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     {backupLoading ? (
-                      '⏳ Criando...'
+                      'Criando...'
                     ) : (
                       <>
                         <DownloadIcon size={16} />
-                        💾 Baixar Backup
+                        Baixar Backup
                       </>
                     )}
                   </button>
@@ -312,17 +315,17 @@ export default function Settings() {
 
                 {/* Restaurar Backup */}
                 <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
-                  <h3 className={`font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>📂 Restaurar Backup</h3>
+                  <h3 className={`font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Restaurar Backup</h3>
                   <p className={`text-sm mb-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                    📥 Carregue um arquivo de backup para restaurar
+                    Carregue um arquivo de backup para restaurar
                   </p>
                   <label className="w-full py-3 px-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-medium hover:opacity-90 transition-opacity cursor-pointer flex items-center justify-center gap-2">
                     {restoreLoading ? (
-                      '⏳ Restaurando...'
+                      'Restaurando...'
                     ) : (
                       <>
                         <UploadIcon size={16} />
-                        📂 Carregar Backup
+                        Carregar Backup
                       </>
                     )}
                     <input
@@ -336,10 +339,13 @@ export default function Settings() {
                 </div>
 
                 <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-yellow-500/10 border-yellow-500/20' : 'bg-yellow-50 border-yellow-200'}`}>
-                  <p className={`text-sm ${isDarkMode ? 'text-yellow-400' : 'text-yellow-700'}`}>
-                    <strong>⚠️ Importante:</strong> O backup inclui todos os seus dados exceto senhas e tokens de acesso. 
-                    Após restaurar um backup, você precisará reconectar suas contas do Bling.
-                  </p>
+                  <div className="flex items-start gap-2">
+                    <InfoIcon size={16} className={isDarkMode ? 'text-yellow-400' : 'text-yellow-600'} />
+                    <p className={`text-sm ${isDarkMode ? 'text-yellow-400' : 'text-yellow-700'}`}>
+                      <strong>Importante:</strong> O backup inclui todos os seus dados exceto senhas e tokens de acesso. 
+                      Após restaurar um backup, você precisará reconectar suas contas do Bling.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -353,7 +359,7 @@ export default function Settings() {
                   <LockIcon size={32} className={isDarkMode ? 'text-purple-400' : 'text-purple-600'} />
                 </div>
                 <div>
-                  <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>🔐 Alterar Senha</h2>
+                  <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Alterar Senha</h2>
                   <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Mantenha sua conta segura com uma senha forte</p>
                 </div>
               </div>
@@ -367,7 +373,10 @@ export default function Settings() {
               <form onSubmit={handleChangePassword} className="space-y-6">
                 <div>
                   <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    🔑 Senha Atual
+                    <div className="flex items-center gap-2">
+                      <KeyIcon size={16} />
+                      Senha Atual
+                    </div>
                   </label>
                   <div className="relative">
                     <input 
@@ -391,7 +400,10 @@ export default function Settings() {
 
                 <div>
                   <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    🆕 Nova Senha
+                    <div className="flex items-center gap-2">
+                      <StarIcon size={16} />
+                      Nova Senha
+                    </div>
                   </label>
                   <div className="relative">
                     <input 
@@ -415,7 +427,10 @@ export default function Settings() {
 
                 <div>
                   <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    ✅ Confirmar Nova Senha
+                    <div className="flex items-center gap-2">
+                      <CheckIcon size={16} />
+                      Confirmar Nova Senha
+                    </div>
                   </label>
                   <div className="relative">
                     <input 
@@ -444,11 +459,11 @@ export default function Settings() {
                     className="w-full py-4 px-6 bg-gradient-to-r from-cyan-500 to-purple-500 text-white rounded-xl font-semibold text-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
                   >
                     {loading ? (
-                      '⏳ Alterando senha...'
+                      'Alterando senha...'
                     ) : (
                       <>
                         <CheckIcon size={20} />
-                        🔐 Alterar Senha
+                        Alterar Senha
                       </>
                     )}
                   </button>
@@ -457,8 +472,9 @@ export default function Settings() {
 
               {/* Dicas de Segurança */}
               <div className={`mt-8 p-6 rounded-xl border ${isDarkMode ? 'bg-blue-500/10 border-blue-500/20' : 'bg-blue-50 border-blue-200'}`}>
-                <h3 className={`font-semibold mb-3 ${isDarkMode ? 'text-blue-400' : 'text-blue-700'}`}>
-                  🛡️ Dicas de Segurança
+                <h3 className={`font-semibold mb-3 flex items-center gap-2 ${isDarkMode ? 'text-blue-400' : 'text-blue-700'}`}>
+                  <ShieldIcon size={20} />
+                  Dicas de Segurança
                 </h3>
                 <ul className={`text-sm space-y-2 ${isDarkMode ? 'text-blue-300' : 'text-blue-600'}`}>
                   <li>• Use pelo menos 8 caracteres</li>

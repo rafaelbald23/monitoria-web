@@ -155,7 +155,7 @@ export default function NewSale() {
         <div className="flex justify-between items-center mb-6">
           <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Nova Venda</h1>
           <div className={`px-4 py-2 rounded-xl ${isDarkMode ? 'bg-white/10 text-white' : 'bg-gray-100 text-gray-900'}`}>
-            <span className="text-sm">🔥 Baixa automática ativada para pedidos Faturados/Enviados</span>
+            <span className="text-sm">Baixa automática ativada para pedidos Faturados/Enviados</span>
           </div>
         </div>
 

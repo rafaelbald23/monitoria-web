@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTheme } from '../hooks/useTheme';
-import { DatabaseIcon, DownloadIcon, XIcon, ClockIcon } from './Icons';
+import { DatabaseIcon, DownloadIcon, XIcon, ClockIcon, InfoIcon, CheckIcon } from './Icons';
 import api from '../lib/api';
 
 interface BackupModalProps {
@@ -37,7 +37,7 @@ export default function BackupModal({ isOpen, onClose, onBackupComplete }: Backu
 
         setMessage({ 
           type: 'success', 
-          text: `Backup criado com sucesso! 📦 ${result.backup.summary.products} produtos, 👥 ${result.backup.summary.customers} clientes salvos.` 
+          text: `Backup criado com sucesso! ${result.backup.summary.products} produtos, ${result.backup.summary.customers} clientes salvos.` 
         });
 
         // Atualizar data do último backup
@@ -88,7 +88,7 @@ export default function BackupModal({ isOpen, onClose, onBackupComplete }: Backu
             </div>
             <div>
               <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                🔒 Backup Recomendado
+                Backup Recomendado
               </h2>
               <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                 Proteja seus dados importantes
@@ -106,18 +106,19 @@ export default function BackupModal({ isOpen, onClose, onBackupComplete }: Backu
         {/* Content */}
         <div className="mb-6">
           <p className={`text-sm mb-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-            📋 Recomendamos fazer backup dos seus dados regularmente para garantir que suas informações estejam sempre seguras.
+            Recomendamos fazer backup dos seus dados regularmente para garantir que suas informações estejam sempre seguras.
           </p>
           
           <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-blue-500/10 border-blue-500/20' : 'bg-blue-50 border-blue-200'}`}>
-            <p className={`text-sm font-medium mb-2 ${isDarkMode ? 'text-blue-400' : 'text-blue-700'}`}>
-              📦 O backup inclui:
+            <p className={`text-sm font-medium mb-2 flex items-center gap-2 ${isDarkMode ? 'text-blue-400' : 'text-blue-700'}`}>
+              <CheckIcon size={16} />
+              O backup inclui:
             </p>
             <ul className={`text-xs space-y-1 ${isDarkMode ? 'text-blue-300' : 'text-blue-600'}`}>
-              <li>• 📦 Produtos e estoque</li>
-              <li>• 👥 Clientes e vendas</li>
-              <li>• ⚙️ Configurações das contas</li>
-              <li>• 📊 Histórico de movimentações</li>
+              <li>• Produtos e estoque</li>
+              <li>• Clientes e vendas</li>
+              <li>• Configurações das contas</li>
+              <li>• Histórico de movimentações</li>
             </ul>
           </div>
         </div>
@@ -137,11 +138,11 @@ export default function BackupModal({ isOpen, onClose, onBackupComplete }: Backu
             className="w-full py-3 px-4 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-xl font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {loading ? (
-              '⏳ Criando backup...'
+              'Criando backup...'
             ) : (
               <>
                 <DownloadIcon size={18} />
-                💾 Fazer Backup Agora
+                Fazer Backup Agora
               </>
             )}
           </button>
@@ -153,7 +154,7 @@ export default function BackupModal({ isOpen, onClose, onBackupComplete }: Backu
               className={`py-2 px-3 rounded-xl text-sm font-medium transition-colors border ${isDarkMode ? 'bg-white/5 text-gray-300 hover:bg-white/10 border-white/10' : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border-gray-200'} disabled:opacity-50`}
             >
               <ClockIcon size={16} className="inline mr-1" />
-              ⏰ Lembrar em 7 dias
+              Lembrar em 7 dias
             </button>
             
             <button
@@ -161,13 +162,15 @@ export default function BackupModal({ isOpen, onClose, onBackupComplete }: Backu
               disabled={loading}
               className={`py-2 px-3 rounded-xl text-sm font-medium transition-colors border ${isDarkMode ? 'bg-white/5 text-gray-300 hover:bg-white/10 border-white/10' : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border-gray-200'} disabled:opacity-50`}
             >
-              ❌ Não mostrar mais
+              <XIcon size={16} className="inline mr-1" />
+              Não mostrar mais
             </button>
           </div>
         </div>
 
-        <p className={`text-xs mt-4 text-center ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-          💡 Você pode fazer backup a qualquer momento em Configurações
+        <p className={`text-xs mt-4 text-center flex items-center justify-center gap-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+          <InfoIcon size={12} />
+          Você pode fazer backup a qualquer momento em Configurações
         </p>
       </div>
     </div>

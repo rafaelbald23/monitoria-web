@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import { useTheme } from '../hooks/useTheme';
 import api from '../lib/api';
-import { PlusIcon, RefreshIcon, LinkIcon } from '../components/Icons';
+import { PlusIcon, RefreshIcon, LinkIcon, FileTextIcon } from '../components/Icons';
 
 interface Account {
   id: string;
@@ -87,9 +87,9 @@ export default function Accounts() {
       const result = await api.syncAccount(id);
       loadAccounts();
       if (result.success) {
-        alert(`✅ Sincronização concluída!\n\n${result.imported} produtos novos importados\n${result.updated || 0} produtos atualizados\n${result.total} produtos no total`);
+        alert(`Sincronização concluída!\n\n${result.imported} produtos novos importados\n${result.updated || 0} produtos atualizados\n${result.total} produtos no total`);
       } else {
-        alert('❌ ' + (result.error || 'Erro ao sincronizar'));
+        alert('Erro: ' + (result.error || 'Erro ao sincronizar'));
       }
     } catch (error) {
       console.error('Erro ao sincronizar:', error);
@@ -190,7 +190,10 @@ export default function Accounts() {
                   <input type="password" value={formData.clientSecret} onChange={(e) => setFormData({ ...formData, clientSecret: e.target.value })} className={`w-full rounded-xl px-3 py-2 border outline-none transition-colors ${isDarkMode ? 'bg-white/5 border-white/10 text-white focus:border-purple-500' : 'bg-white border-gray-300 text-gray-900 focus:border-purple-500'}`} placeholder="Cole o Client Secret do seu aplicativo Bling" />
                 </div>
                 <div className={`text-xs p-3 rounded-lg mb-4 ${isDarkMode ? 'bg-white/5' : 'bg-blue-50'}`}>
-                  <p className={`font-medium mb-2 ${isDarkMode ? 'text-cyan-400' : 'text-blue-700'}`}>📋 Como obter as credenciais:</p>
+                  <p className={`font-medium mb-2 flex items-center gap-2 ${isDarkMode ? 'text-cyan-400' : 'text-blue-700'}`}>
+                    <FileTextIcon size={16} />
+                    Como obter as credenciais:
+                  </p>
                   <ol className={`list-decimal list-inside space-y-1 ${isDarkMode ? 'text-gray-400' : 'text-blue-600'}`}>
                     <li>Acesse sua conta no Bling</li>
                     <li>Vá em Configurações → Integrações → API</li>
