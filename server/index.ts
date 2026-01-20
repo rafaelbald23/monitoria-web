@@ -62,6 +62,7 @@ app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando em http://localhost:${PORT}`);
   console.log(`📊 API disponível em http://localhost:${PORT}/api`);
   
-  // Iniciar sincronização automática do Bling
-  startAutoSync();
+  // Temporariamente desabilitado para debug
+  // startAutoSync();
+  console.log('⚠️ Auto-sync temporariamente desabilitado para debug');
 });

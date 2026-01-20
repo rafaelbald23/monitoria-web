@@ -455,7 +455,7 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
         }
         
         // Processar data corretamente para evitar problemas de timezone
-        let blingCreatedAt = null;
+        let blingCreatedAt: Date | null = null;
         if (order.data) {
           // Se a data vem no formato YYYY-MM-DD, adiciona horário para evitar timezone offset
           if (typeof order.data === 'string' && order.data.match(/^\d{4}-\d{2}-\d{2}$/)) {
@@ -608,8 +608,20 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
       })),
     });
   } catch (error: any) {
-    console.error('Erro ao buscar pedidos:', error.response?.data || error.message);
-    res.json({ success: false, error: error.response?.data?.error?.message || 'Erro ao buscar pedidos' });
+    console.error('❌ Erro ao buscar pedidos:', error.response?.data || error.message);
+    console.error('❌ Stack trace:', error.stack);
+    
+    // Retornar erro mais específico
+    let errorMessage = 'Erro ao buscar pedidos';
+    if (error.response?.data?.error?.message) {
+      errorMessage = error.response.data.error.message;
+    } else if (error.response?.data?.message) {
+      errorMessage = error.response.data.message;
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    res.json({ success: false, error: errorMessage });
   }
 });
 
