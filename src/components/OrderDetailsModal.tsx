@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTheme } from '../hooks/useTheme';
-import { CloseIcon, ShoppingCartIcon, UserIcon, CalendarIcon, DollarIcon, PackageIcon } from './Icons';
+import { XIcon, ShoppingCartIcon, UserIcon, CalendarIcon, DollarIcon, PackageIcon } from './Icons';
 
 interface OrderItem {
   codigo?: string;
@@ -117,7 +117,7 @@ export default function OrderDetailsModal({ isOpen, onClose, order, onProcessOrd
             onClick={onClose}
             className={`p-2 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}
           >
-            <CloseIcon size={20} className={isDarkMode ? 'text-gray-400' : 'text-gray-600'} />
+            <XIcon size={20} className={isDarkMode ? 'text-gray-400' : 'text-gray-600'} />
           </button>
         </div>
 
