@@ -95,6 +95,52 @@ export default function Sales() {
     }
   };
 
+  const handleCorrectStatus = async (orderNumber: string) => {
+    if (!accounts.length) {
+      showMessage('error', 'Nenhuma conta conectada');
+      return;
+    }
+    
+    // Perguntar qual é o status correto
+    const correctStatus = prompt('Qual é o status correto que você vê na interface do Bling?\n\nExemplos: Verificado, Checado, Aprovado, Pronto para Envio');
+    
+    if (!correctStatus || correctStatus.trim().length === 0) {
+      showMessage('error', 'Status não informado');
+      return;
+    }
+    
+    try {
+      const account = accounts[0];
+      const response = await fetch(`/api/bling/force-status-correction/${account.id}/${orderNumber}`, {
+        method: 'POST',
+        headers: { 
+          Authorization: `Bearer ${localStorage.getItem('accessToken') || localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ correctStatus: correctStatus.trim() })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      
+      console.log('🔧 CORREÇÃO RESULTADO:', result);
+      
+      if (result.success) {
+        showMessage('success', result.message);
+        // Recarregar dados
+        await loadBlingOrders();
+      } else {
+        showMessage('error', `Erro na correção: ${result.error}`);
+      }
+    } catch (error: any) {
+      console.error('Erro na correção:', error);
+      showMessage('error', `Erro na correção: ${error.message}`);
+    }
+  };
+
   const handleInvestigateOrder = async (orderNumber: string) => {
     if (!accounts.length) {
       showMessage('error', 'Nenhuma conta conectada');
@@ -512,6 +558,13 @@ Deve processar estoque: ${inv.comparison.shouldProcessStock ? 'SIM' : 'NÃO'}`;
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex gap-1">
+                          <button 
+                            onClick={() => handleCorrectStatus(order.orderNumber)} 
+                            className={"px-2 py-1 rounded text-xs font-medium " + (isDarkMode ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' : 'bg-green-100 text-green-700 hover:bg-green-200')}
+                            title="Corrigir Status"
+                          >
+                            ✅
+                          </button>
                           <button 
                             onClick={() => handleInvestigateOrder(order.orderNumber)} 
                             className={"px-2 py-1 rounded text-xs font-medium " + (isDarkMode ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' : 'bg-purple-100 text-purple-700 hover:bg-purple-200')}

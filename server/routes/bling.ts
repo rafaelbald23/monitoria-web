@@ -529,6 +529,129 @@ router.post('/force-update-status', authMiddleware, async (req: AuthRequest, res
   }
 });
 
+// CORREÇÃO MANUAL: Forçar status baseado na interface do Bling
+router.post('/force-status-correction/:accountId/:orderNumber', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { accountId, orderNumber } = req.params;
+    const { correctStatus } = req.body; // Status correto visto na interface do Bling
+    const userId = req.user!.userId;
+
+    console.log(`🔧 CORREÇÃO FORÇADA: Pedido #${orderNumber} para status "${correctStatus}"`);
+
+    // Buscar o pedido no banco
+    const order = await prisma.blingOrder.findFirst({
+      where: {
+        OR: [
+          { orderNumber: String(orderNumber) },
+          { blingOrderId: String(orderNumber) }
+        ],
+        accountId,
+        userId,
+      },
+    });
+
+    if (!order) {
+      return res.json({ success: false, error: 'Pedido não encontrado no banco de dados' });
+    }
+
+    console.log(`📋 Status atual no DB: ${order.status}`);
+    console.log(`🎯 Status correto informado: ${correctStatus}`);
+
+    // Verificar se precisa de baixa automática
+    const statusNormalized = correctStatus.toLowerCase().trim();
+    const statusParaBaixa = [
+      'verificado', 'checado', 'aprovado', 'pronto para envio',
+      'verified', 'checked', 'approved', 'ready to ship'
+    ];
+    const needsProcessing = statusParaBaixa.includes(statusNormalized);
+
+    console.log(`🚀 Precisa de baixa automática: ${needsProcessing ? 'SIM' : 'NÃO'}`);
+
+    // Atualizar status no banco
+    const updatedOrder = await prisma.blingOrder.update({
+      where: { id: order.id },
+      data: {
+        status: correctStatus,
+        isProcessed: needsProcessing ? false : order.isProcessed, // Reset se precisa processar
+        updatedAt: new Date(),
+      },
+    });
+
+    let autoProcessed = false;
+    let produtosProcessados = 0;
+
+    // Processar baixa automática se necessário
+    if (needsProcessing && !order.isProcessed) {
+      console.log(`🔥 PROCESSANDO BAIXA AUTOMÁTICA CORRIGIDA para pedido #${orderNumber}`);
+      
+      const items = JSON.parse(order.items);
+
+      await prisma.$transaction(async (tx) => {
+        for (const item of items) {
+          const sku = item.codigo || item.produto?.codigo;
+          const quantidade = item.quantidade || 1;
+          
+          if (!sku) {
+            console.log(`⚠️ Item sem SKU:`, item);
+            continue;
+          }
+
+          const product = await tx.product.findUnique({
+            where: { sku },
+          });
+
+          if (product) {
+            console.log(`📦 BAIXA CORRIGIDA: ${quantidade}x ${product.name} (SKU: ${sku})`);
+            
+            await tx.movement.create({
+              data: {
+                type: 'EXIT',
+                productId: product.id,
+                quantity: quantidade,
+                reason: `Baixa automática CORRIGIDA - Pedido #${orderNumber} (${correctStatus})`,
+                userId,
+                syncStatus: 'synced',
+              },
+            });
+            
+            produtosProcessados++;
+          } else {
+            console.log(`⚠️ Produto não encontrado - SKU: ${sku}`);
+          }
+        }
+
+        // Marcar como processado
+        await tx.blingOrder.update({
+          where: { id: order.id },
+          data: {
+            isProcessed: true,
+            processedAt: new Date(),
+          },
+        });
+      });
+
+      autoProcessed = true;
+      console.log(`✅ BAIXA CORRIGIDA CONCLUÍDA: ${produtosProcessados} produtos processados`);
+    }
+
+    res.json({ 
+      success: true, 
+      message: `Status corrigido para "${correctStatus}"${autoProcessed ? ` e baixa processada (${produtosProcessados} produtos)` : ''}`,
+      details: {
+        oldStatus: order.status,
+        newStatus: correctStatus,
+        needsProcessing,
+        autoProcessed,
+        produtosProcessados,
+      }
+    });
+
+  } catch (error: any) {
+    console.error('❌ Erro na correção forçada:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // INVESTIGAÇÃO ESPECÍFICA: Comparar status Bling vs Sistema
 router.get('/investigate-order/:accountId/:orderNumber', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
