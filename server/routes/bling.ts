@@ -559,7 +559,7 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
       await prisma.$transaction(async (tx) => {
         for (const orderData of batch) {
           try {
-            // Verificar se o pedido já existe
+            // Verificar se o pedido já existe e forçar atualização se necessário
             const existingOrder = await tx.blingOrder.findUnique({
               where: {
                 blingOrderId_accountId: {
@@ -568,6 +568,12 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
                 },
               },
             });
+
+            // FORÇAR ATUALIZAÇÃO: Se o pedido existe e o status é diferente, sempre atualizar
+            const forceUpdate = existingOrder && existingOrder.status !== orderData.status;
+            if (forceUpdate) {
+              console.log(`🔄 FORÇANDO ATUALIZAÇÃO: Pedido #${orderData.orderNumber} de "${existingOrder.status}" para "${orderData.status}"`);
+            }
 
             const savedOrder = await tx.blingOrder.upsert({
               where: {
@@ -582,8 +588,8 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
                 totalAmount: orderData.totalAmount,
                 items: orderData.items,
                 updatedAt: new Date(),
-                // Se o status mudou para "Verificado" e ainda não foi processado, resetar isProcessed
-                isProcessed: orderData.status === 'Verificado' ? false : undefined,
+                // Se mudou para "Verificado", resetar processamento
+                isProcessed: (orderData.status === 'Verificado' && existingOrder?.status !== 'Verificado') ? false : existingOrder?.isProcessed,
               },
               create: {
                 blingOrderId: orderData.blingOrderId,
@@ -602,8 +608,8 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
             processedCount++;
 
             // 🚀 BAIXA AUTOMÁTICA NO ESTOQUE (APENAS para status "Verificado" e pedidos não processados)
-            if (orderData.needsProcessing && !savedOrder.isProcessed) {
-              console.log(`🔥 Processando baixa automática para pedido #${orderData.orderNumber} - Status: ${orderData.status}`);
+            if (orderData.status === 'Verificado' && !savedOrder.isProcessed) {
+              console.log(`🔥 BAIXA AUTOMÁTICA ATIVADA para pedido #${orderData.orderNumber} - Status: ${orderData.status}`);
               
               const items = JSON.parse(orderData.items);
               let produtosProcessados = 0;
@@ -623,7 +629,7 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
                 });
 
                 if (product) {
-                  console.log(`📦 Dando baixa: ${quantidade}x ${product.name} (SKU: ${sku})`);
+                  console.log(`📦 DANDO BAIXA: ${quantidade}x ${product.name} (SKU: ${sku})`);
                   
                   // Criar movimento de saída
                   await tx.movement.create({
@@ -653,9 +659,11 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
               });
 
               autoProcessedCount++;
-              console.log(`✅ Baixa automática concluída: ${produtosProcessados} produtos processados para pedido #${orderData.orderNumber}`);
-            } else if (orderData.needsProcessing && savedOrder.isProcessed) {
+              console.log(`✅ BAIXA AUTOMÁTICA CONCLUÍDA: ${produtosProcessados} produtos processados para pedido #${orderData.orderNumber}`);
+            } else if (orderData.status === 'Verificado' && savedOrder.isProcessed) {
               console.log(`ℹ️ Pedido #${orderData.orderNumber} já foi processado anteriormente`);
+            } else {
+              console.log(`ℹ️ Pedido #${orderData.orderNumber} com status "${orderData.status}" - não requer baixa automática`);
             }
           } catch (upsertError: any) {
             console.error(`❌ Erro ao salvar pedido ${orderData.orderNumber}:`, upsertError.message);
