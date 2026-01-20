@@ -341,9 +341,9 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
 
     while (hasMore && page <= 10) {
       try {
-        // Reduzir delay para 200ms (5 req/segundo) - mais rápido mas ainda seguro
+        // Aumentar delay para evitar rate limit (3 req/segundo = 333ms)
         if (page > 1) {
-          await new Promise(resolve => setTimeout(resolve, 200));
+          await new Promise(resolve => setTimeout(resolve, 500)); // 500ms entre páginas
         }
         
         console.log(`Fazendo requisição para página ${page}...`);
@@ -352,7 +352,7 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
             Authorization: `Bearer ${accessToken}`,
             Accept: 'application/json',
           },
-          timeout: 15000, // Aumentar timeout para 15 segundos
+          timeout: 20000, // Aumentar timeout para 20 segundos
         });
 
         console.log(`Página ${page} - Status:`, response.status);
@@ -399,10 +399,10 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
         
         lastError = errorMessage;
         
-        // Se for 429 (rate limit), aguarda menos tempo
+        // Se for 429 (rate limit), aguarda mais tempo
         if (apiError.response?.status === 429) {
-          console.log('⏳ Rate limit atingido, aguardando 1 segundo...');
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          console.log('⏳ Rate limit atingido, aguardando 3 segundos...');
+          await new Promise(resolve => setTimeout(resolve, 3000)); // 3 segundos
           continue;
         }
         
