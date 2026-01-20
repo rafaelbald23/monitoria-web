@@ -114,19 +114,60 @@ async function syncAccountOrders(account: any): Promise<{ success: boolean; proc
     await prisma.$transaction(async (tx) => {
       for (const order of allOrders) {
         try {
-          // Mapear status
+          // MAPEAMENTO DE STATUS MELHORADO - Igual ao bling.ts
           const statusId = order.situacao?.id;
-          const statusTexto = order.situacao?.valor || order.situacao?.nome || order.situacao?.descricao || '';
+          
+          // LOG COMPLETO da estrutura para debug
+          console.log(`📋 [AUTO-SYNC] ANÁLISE Pedido #${order.numero}:`);
+          console.log(`   - situacao:`, JSON.stringify(order.situacao, null, 2));
+          
+          // NOVA ESTRATÉGIA: Testar TODOS os campos possíveis da situacao
+          const possibleStatusFields = [
+            // Campos mais comuns da API Bling v3
+            order.situacao?.nome,           // Campo principal na v3
+            order.situacao?.descricao,      // Campo alternativo
+            order.situacao?.valor,          // Campo de valor
+            order.situacao?.texto,          // Campo de texto
+            order.situacao?.status,         // Campo status direto
+            order.situacao?.situacao,       // Campo situacao aninhado
+            // Campos do pedido principal
+            order.status,
+            order.situacao_nome,
+            order.situacao_descricao,
+            // Campos aninhados se existirem
+            order.situacao?.situacao?.nome,
+            order.situacao?.situacao?.descricao,
+            order.situacao?.situacao?.valor,
+          ];
+          
+          let statusTexto = '';
+          let foundField = '';
+          
+          for (let i = 0; i < possibleStatusFields.length; i++) {
+            const field = possibleStatusFields[i];
+            if (field && typeof field === 'string' && field.trim().length > 0) {
+              statusTexto = field.trim();
+              foundField = `campo ${i + 1}`;
+              break;
+            }
+          }
+          
+          console.log(`   - statusId: ${statusId}`);
+          console.log(`   - statusTexto: "${statusTexto}" (${foundField})`);
           
           let status: string;
-          if (statusId !== undefined && statusMap[statusId]) {
+          if (statusTexto && statusTexto.length > 0) {
+            status = statusTexto;
+            console.log(`✅ [AUTO-SYNC] Status pelo TEXTO: "${status}"`);
+          } else if (statusId !== undefined && statusMap[statusId]) {
             status = statusMap[statusId];
-          } else if (statusTexto && typeof statusTexto === 'string' && statusTexto.trim().length > 0) {
-            status = statusTexto.trim();
+            console.log(`✅ [AUTO-SYNC] Status pelo ID ${statusId}: "${status}"`);
           } else if (statusId !== undefined) {
             status = `Status ${statusId}`;
+            console.log(`⚠️ [AUTO-SYNC] Status não mapeado: "${status}"`);
           } else {
             status = 'Aguardando Processamento';
+            console.log(`❌ [AUTO-SYNC] Status padrão: "${status}"`);
           }
 
           // Processar data
@@ -178,8 +219,15 @@ async function syncAccountOrders(account: any): Promise<{ success: boolean; proc
 
           processedCount++;
 
-          // 🚀 BAIXA AUTOMÁTICA APENAS para status "Verificado"
-          if (status === 'Verificado' && !savedOrder.isProcessed) {
+          // 🚀 BAIXA AUTOMÁTICA com verificação melhorada
+          const statusNormalized = status.toLowerCase().trim();
+          const statusParaBaixa = [
+            'verificado', 'checado', 'aprovado', 'pronto para envio',
+            'verified', 'checked', 'approved', 'ready to ship'
+          ];
+          const needsProcessing = statusParaBaixa.includes(statusNormalized);
+          
+          if (needsProcessing && !savedOrder.isProcessed) {
             console.log(`🔥 [AUTO-SYNC] Processando baixa automática para pedido #${order.numero} - Status: ${status}`);
             
             const items = order.itens || [];

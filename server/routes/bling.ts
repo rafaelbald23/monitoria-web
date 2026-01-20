@@ -208,6 +208,236 @@ router.get('/check-auth/:accountId', authMiddleware, async (req: AuthRequest, re
 
 const BLING_API_URL = 'https://www.bling.com.br/Api/v3';
 
+// TESTE: Forçar sincronização de um pedido específico
+router.post('/force-sync-order/:accountId/:orderNumber', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { accountId, orderNumber } = req.params;
+    const userId = req.user!.userId;
+
+    console.log(`🔧 FORÇA SINCRONIZAÇÃO: Pedido #${orderNumber} da conta ${accountId}`);
+
+    const account = await prisma.blingAccount.findFirst({
+      where: { id: accountId, userId },
+    });
+
+    if (!account || !account.accessToken) {
+      return res.json({ success: false, error: 'Conta não conectada' });
+    }
+
+    // Check if token expired and refresh if needed
+    let accessToken = account.accessToken;
+    if (account.tokenExpiresAt && new Date(account.tokenExpiresAt) < new Date()) {
+      try {
+        accessToken = await refreshAccessToken(account);
+      } catch (refreshError: any) {
+        return res.json({ success: false, error: 'Token expirado. Reconecte a conta Bling.' });
+      }
+    }
+
+    // Buscar pedido específico na API do Bling
+    const response = await axios.get(`${BLING_API_URL}/pedidos/vendas?limite=100&pagina=1`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+      timeout: 15000,
+    });
+
+    const orders = response.data?.data || [];
+    const targetOrder = orders.find((o: any) => String(o.numero) === orderNumber || String(o.id) === orderNumber);
+
+    if (!targetOrder) {
+      return res.json({ success: false, error: 'Pedido não encontrado na API do Bling' });
+    }
+
+    // Aplicar a mesma lógica de mapeamento do código principal
+    const situacao = targetOrder.situacao || {};
+    const statusId = situacao.id;
+    
+    console.log(`📋 FORÇA SYNC - Pedido #${targetOrder.numero}:`);
+    console.log(`   - situacao completa:`, JSON.stringify(situacao, null, 2));
+    
+    const possibleStatusFields = [
+      situacao.nome,
+      situacao.descricao,
+      situacao.valor,
+      situacao.texto,
+      situacao.status,
+      situacao.situacao,
+      targetOrder.status,
+      targetOrder.situacao_nome,
+      targetOrder.situacao_descricao,
+      situacao.situacao?.nome,
+      situacao.situacao?.descricao,
+      situacao.situacao?.valor,
+    ];
+    
+    let statusTexto = '';
+    let foundField = '';
+    
+    for (let i = 0; i < possibleStatusFields.length; i++) {
+      const field = possibleStatusFields[i];
+      if (field && typeof field === 'string' && field.trim().length > 0) {
+        statusTexto = field.trim();
+        foundField = `campo ${i + 1}`;
+        break;
+      }
+    }
+    
+    console.log(`   - statusId: ${statusId}`);
+    console.log(`   - statusTexto encontrado: "${statusTexto}" (${foundField})`);
+    
+    const statusMap: Record<number, string> = {
+      0: 'Em Aberto', 1: 'Atendido', 2: 'Cancelado', 3: 'Em Andamento', 4: 'Venda Agenciada',
+      5: 'Verificado', 6: 'Aguardando', 7: 'Não Entregue', 8: 'Entregue', 9: 'Em Digitação',
+      10: 'Checado', 11: 'Enviado', 12: 'Pronto para Envio', 13: 'Pendente', 14: 'Faturado',
+      15: 'Pronto', 16: 'Impresso', 17: 'Separado', 18: 'Embalado', 19: 'Coletado',
+      20: 'Em Trânsito', 21: 'Devolvido', 22: 'Extraviado', 23: 'Tentativa de Entrega',
+      24: 'Reagendado', 25: 'Bloqueado', 26: 'Suspenso', 27: 'Processando',
+      28: 'Aprovado', 29: 'Reprovado', 30: 'Estornado',
+    };
+
+    let status: string;
+    if (statusTexto && statusTexto.length > 0) {
+      status = statusTexto;
+      console.log(`✅ Status capturado pelo TEXTO: "${status}"`);
+    } else if (statusId !== undefined && statusMap[statusId]) {
+      status = statusMap[statusId];
+      console.log(`✅ Status mapeado pelo ID ${statusId}: "${status}"`);
+    } else if (statusId !== undefined) {
+      status = `Status ${statusId}`;
+      console.log(`⚠️ Status não mapeado, usando ID: "${status}"`);
+    } else {
+      status = 'Aguardando Processamento';
+      console.log(`❌ Nenhum status encontrado, usando padrão: "${status}"`);
+    }
+    
+    console.log(`🎯 STATUS FINAL DEFINIDO: "${status}"`);
+    
+    // Verificar se precisa de baixa automática
+    const statusNormalized = status.toLowerCase().trim();
+    const statusParaBaixa = [
+      'verificado', 'checado', 'aprovado', 'pronto para envio',
+      'verified', 'checked', 'approved', 'ready to ship'
+    ];
+    const needsProcessing = statusParaBaixa.includes(statusNormalized);
+    
+    if (needsProcessing) {
+      console.log(`🚀 PEDIDO MARCADO PARA BAIXA AUTOMÁTICA: #${targetOrder.numero} - Status: "${status}"`);
+    }
+
+    // Processar data
+    let blingCreatedAt = null;
+    if (targetOrder.data) {
+      if (typeof targetOrder.data === 'string' && targetOrder.data.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        blingCreatedAt = new Date(targetOrder.data + 'T12:00:00.000Z');
+      } else {
+        blingCreatedAt = new Date(targetOrder.data);
+      }
+    }
+
+    // Salvar/atualizar no banco
+    const savedOrder = await prisma.blingOrder.upsert({
+      where: {
+        blingOrderId_accountId: {
+          blingOrderId: String(targetOrder.id),
+          accountId: accountId,
+        },
+      },
+      update: {
+        status: status,
+        customerName: targetOrder.contato?.nome || null,
+        totalAmount: targetOrder.total || 0,
+        items: JSON.stringify(targetOrder.itens || []),
+        updatedAt: new Date(),
+        // Se mudou para status que precisa de baixa, resetar processamento
+        isProcessed: needsProcessing ? false : undefined,
+      },
+      create: {
+        blingOrderId: String(targetOrder.id),
+        orderNumber: String(targetOrder.numero || targetOrder.id),
+        accountId,
+        userId,
+        status: status,
+        customerName: targetOrder.contato?.nome || null,
+        totalAmount: targetOrder.total || 0,
+        items: JSON.stringify(targetOrder.itens || []),
+        blingCreatedAt,
+        isProcessed: false,
+      },
+    });
+
+    // Processar baixa automática se necessário
+    let autoProcessed = false;
+    if (needsProcessing && !savedOrder.isProcessed) {
+      console.log(`🔥 PROCESSANDO BAIXA AUTOMÁTICA FORÇADA para pedido #${targetOrder.numero}`);
+      
+      const items = targetOrder.itens || [];
+      let produtosProcessados = 0;
+
+      await prisma.$transaction(async (tx) => {
+        for (const item of items) {
+          const sku = item.codigo || item.produto?.codigo;
+          const quantidade = item.quantidade || 1;
+          
+          if (!sku) continue;
+
+          const product = await tx.product.findUnique({
+            where: { sku },
+          });
+
+          if (product) {
+            console.log(`📦 BAIXA FORÇADA: ${quantidade}x ${product.name} (SKU: ${sku})`);
+            
+            await tx.movement.create({
+              data: {
+                type: 'EXIT',
+                productId: product.id,
+                quantity: quantidade,
+                reason: `Baixa automática FORÇADA - Pedido #${targetOrder.numero} (${status})`,
+                userId,
+                syncStatus: 'synced',
+              },
+            });
+            
+            produtosProcessados++;
+          }
+        }
+
+        // Marcar como processado
+        await tx.blingOrder.update({
+          where: { id: savedOrder.id },
+          data: {
+            isProcessed: true,
+            processedAt: new Date(),
+          },
+        });
+      });
+
+      autoProcessed = true;
+      console.log(`✅ BAIXA FORÇADA CONCLUÍDA: ${produtosProcessados} produtos processados`);
+    }
+
+    res.json({ 
+      success: true, 
+      message: `Pedido #${targetOrder.numero} sincronizado com status "${status}"${autoProcessed ? ' e baixa processada automaticamente' : ''}`,
+      debug: {
+        statusTexto,
+        foundField,
+        finalStatus: status,
+        needsProcessing,
+        autoProcessed,
+        statusNormalized,
+        statusParaBaixa,
+      }
+    });
+
+  } catch (error: any) {
+    console.error('❌ Erro na sincronização forçada:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // SOLUÇÃO DEFINITIVA: Rota para forçar atualização de status específico
 router.post('/force-update-status', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
@@ -295,6 +525,161 @@ router.post('/force-update-status', authMiddleware, async (req: AuthRequest, res
 
   } catch (error: any) {
     console.error('❌ Erro na atualização forçada:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// DEBUG AVANÇADO: Rota para testar status de um pedido específico
+router.get('/debug-status/:accountId/:orderNumber', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { accountId, orderNumber } = req.params;
+    const userId = req.user!.userId;
+
+    const account = await prisma.blingAccount.findFirst({
+      where: { id: accountId, userId },
+    });
+
+    if (!account || !account.accessToken) {
+      return res.json({ success: false, error: 'Conta não conectada' });
+    }
+
+    // Check if token expired and refresh if needed
+    let accessToken = account.accessToken;
+    if (account.tokenExpiresAt && new Date(account.tokenExpiresAt) < new Date()) {
+      try {
+        accessToken = await refreshAccessToken(account);
+      } catch (refreshError: any) {
+        return res.json({ success: false, error: 'Token expirado. Reconecte a conta Bling.' });
+      }
+    }
+
+    // Buscar pedido específico na API do Bling
+    const response = await axios.get(`${BLING_API_URL}/pedidos/vendas?limite=100&pagina=1`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+      timeout: 15000,
+    });
+
+    const orders = response.data?.data || [];
+    const targetOrder = orders.find((o: any) => String(o.numero) === orderNumber || String(o.id) === orderNumber);
+
+    if (!targetOrder) {
+      return res.json({ success: false, error: 'Pedido não encontrado na API do Bling' });
+    }
+
+    // ANÁLISE COMPLETA DO STATUS
+    const situacao = targetOrder.situacao || {};
+    
+    // Testar todos os campos possíveis
+    const allPossibleFields = {
+      'situacao.id': situacao.id,
+      'situacao.nome': situacao.nome,
+      'situacao.descricao': situacao.descricao,
+      'situacao.valor': situacao.valor,
+      'situacao.texto': situacao.texto,
+      'situacao.status': situacao.status,
+      'situacao.situacao': situacao.situacao,
+      'order.status': targetOrder.status,
+      'order.situacao_nome': targetOrder.situacao_nome,
+      'order.situacao_descricao': targetOrder.situacao_descricao,
+    };
+
+    // Verificar se há campos aninhados
+    if (situacao.situacao && typeof situacao.situacao === 'object') {
+      allPossibleFields['situacao.situacao.nome'] = situacao.situacao.nome;
+      allPossibleFields['situacao.situacao.descricao'] = situacao.situacao.descricao;
+      allPossibleFields['situacao.situacao.valor'] = situacao.situacao.valor;
+    }
+
+    // Aplicar a mesma lógica do código principal
+    const possibleStatusFields = [
+      situacao.nome,
+      situacao.descricao,
+      situacao.valor,
+      situacao.texto,
+      situacao.status,
+      situacao.situacao,
+      targetOrder.status,
+      targetOrder.situacao_nome,
+      targetOrder.situacao_descricao,
+      situacao.situacao?.nome,
+      situacao.situacao?.descricao,
+      situacao.situacao?.valor,
+    ];
+    
+    let statusTexto = '';
+    let foundField = '';
+    
+    for (let i = 0; i < possibleStatusFields.length; i++) {
+      const field = possibleStatusFields[i];
+      if (field && typeof field === 'string' && field.trim().length > 0) {
+        statusTexto = field.trim();
+        foundField = `possibleStatusFields[${i}]`;
+        break;
+      }
+    }
+
+    // Mapear status final
+    const statusMap: Record<number, string> = {
+      0: 'Em Aberto', 1: 'Atendido', 2: 'Cancelado', 3: 'Em Andamento', 4: 'Venda Agenciada',
+      5: 'Verificado', 6: 'Aguardando', 7: 'Não Entregue', 8: 'Entregue', 9: 'Em Digitação',
+      10: 'Checado', 11: 'Enviado', 12: 'Pronto para Envio', 13: 'Pendente', 14: 'Faturado',
+      15: 'Pronto', 16: 'Impresso', 17: 'Separado', 18: 'Embalado', 19: 'Coletado',
+      20: 'Em Trânsito', 21: 'Devolvido', 22: 'Extraviado', 23: 'Tentativa de Entrega',
+      24: 'Reagendado', 25: 'Bloqueado', 26: 'Suspenso', 27: 'Processando',
+      28: 'Aprovado', 29: 'Reprovado', 30: 'Estornado',
+    };
+
+    let finalStatus: string;
+    if (statusTexto && statusTexto.length > 0) {
+      finalStatus = statusTexto;
+    } else if (situacao.id !== undefined && statusMap[situacao.id]) {
+      finalStatus = statusMap[situacao.id];
+    } else if (situacao.id !== undefined) {
+      finalStatus = `Status ${situacao.id}`;
+    } else {
+      finalStatus = 'Aguardando Processamento';
+    }
+
+    // Verificar se precisa de baixa automática
+    const statusNormalized = finalStatus.toLowerCase().trim();
+    const statusParaBaixa = [
+      'verificado', 'checado', 'aprovado', 'pronto para envio',
+      'verified', 'checked', 'approved', 'ready to ship'
+    ];
+    const needsProcessing = statusParaBaixa.includes(statusNormalized);
+
+    res.json({
+      success: true,
+      debug: {
+        orderNumber,
+        rawOrder: targetOrder,
+        situacaoCompleta: situacao,
+        allPossibleFields,
+        statusTextoEncontrado: statusTexto,
+        foundField,
+        finalStatus,
+        needsProcessing,
+        statusNormalized,
+        statusParaBaixa,
+        // Comparação com banco de dados
+        dbOrder: await prisma.blingOrder.findFirst({
+          where: {
+            OR: [
+              { orderNumber: String(orderNumber) },
+              { blingOrderId: String(targetOrder.id) }
+            ],
+            accountId,
+            userId,
+          },
+        }),
+      }
+    });
+
+  } catch (error: any) {
+    console.error('❌ Erro no debug avançado:', error.message);
     res.json({ success: false, error: error.message });
   }
 });
@@ -580,46 +965,87 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
     
     for (const order of allOrders) {
       try {
-        // SOLUÇÃO DEFINITIVA: Capturar status exato da API do Bling
-        const statusId = order.situacao?.id;
-        const statusTexto = order.situacao?.valor || order.situacao?.nome || order.situacao?.descricao || order.situacao?.texto || '';
+        // SOLUÇÃO DEFINITIVA: Capturar status da API Bling v3 de forma mais robusta
+        const situacao = order.situacao || {};
+        const statusId = situacao.id;
         
-        // LOG DETALHADO para debug
-        console.log(`📋 Pedido #${order.numero}:`);
+        // LOG COMPLETO da estrutura para debug
+        console.log(`📋 ANÁLISE COMPLETA Pedido #${order.numero}:`);
+        console.log(`   - situacao completa:`, JSON.stringify(situacao, null, 2));
+        console.log(`   - order keys:`, Object.keys(order));
+        
+        // NOVA ESTRATÉGIA: Testar TODOS os campos possíveis da situacao
+        const possibleStatusFields = [
+          // Campos mais comuns da API Bling v3
+          situacao.nome,           // Campo principal na v3
+          situacao.descricao,      // Campo alternativo
+          situacao.valor,          // Campo de valor
+          situacao.texto,          // Campo de texto
+          situacao.status,         // Campo status direto
+          situacao.situacao,       // Campo situacao aninhado
+          // Campos do pedido principal
+          order.status,
+          order.situacao_nome,
+          order.situacao_descricao,
+          // Campos aninhados se existirem
+          situacao.situacao?.nome,
+          situacao.situacao?.descricao,
+          situacao.situacao?.valor,
+        ];
+        
+        let statusTexto = '';
+        let foundField = '';
+        
+        for (let i = 0; i < possibleStatusFields.length; i++) {
+          const field = possibleStatusFields[i];
+          if (field && typeof field === 'string' && field.trim().length > 0) {
+            statusTexto = field.trim();
+            foundField = `campo ${i + 1}`;
+            break;
+          }
+        }
+        
         console.log(`   - statusId: ${statusId}`);
-        console.log(`   - statusTexto: "${statusTexto}"`);
-        console.log(`   - situacao completa:`, JSON.stringify(order.situacao, null, 2));
+        console.log(`   - statusTexto encontrado: "${statusTexto}" (${foundField})`);
         
-        // NOVA ABORDAGEM: Usar EXATAMENTE o que vem da API
+        // ESTRATÉGIA DE MAPEAMENTO MELHORADA
         let status: string;
         
-        // 1. Se tem texto, usar o texto EXATO (mais confiável)
-        if (statusTexto && typeof statusTexto === 'string' && statusTexto.trim().length > 0) {
-          status = statusTexto.trim();
+        // 1. PRIORIDADE: Usar texto encontrado (mais confiável que ID)
+        if (statusTexto && statusTexto.length > 0) {
+          status = statusTexto;
           console.log(`✅ Status capturado pelo TEXTO: "${status}"`);
         }
-        // 2. Se não tem texto mas tem ID, tentar mapear
+        // 2. FALLBACK: Usar mapeamento por ID se disponível
         else if (statusId !== undefined && statusMap[statusId]) {
           status = statusMap[statusId];
           console.log(`✅ Status mapeado pelo ID ${statusId}: "${status}"`);
         }
-        // 3. Se tem ID mas não está mapeado, usar ID como texto
+        // 3. FALLBACK: ID não mapeado
         else if (statusId !== undefined) {
           status = `Status ${statusId}`;
           console.log(`⚠️ Status não mapeado, usando ID: "${status}"`);
         }
-        // 4. Último recurso
+        // 4. ÚLTIMO RECURSO
         else {
           status = 'Aguardando Processamento';
           console.log(`❌ Nenhum status encontrado, usando padrão: "${status}"`);
         }
         
-        // LOG FINAL
         console.log(`🎯 STATUS FINAL DEFINIDO: "${status}"`);
         
-        // Verificar se é um status que deve dar baixa automática
-        const statusParaBaixa = ['Verificado', 'verificado', 'VERIFICADO'];
-        const needsProcessing = statusParaBaixa.some(s => s.toLowerCase() === status.toLowerCase());
+        // VERIFICAÇÃO MELHORADA para baixa automática
+        // Aceitar variações de "Verificado" e "Checado"
+        const statusNormalized = status.toLowerCase().trim();
+        const statusParaBaixa = [
+          'verificado', 'checado', 'aprovado', 'pronto para envio',
+          'verified', 'checked', 'approved', 'ready to ship'
+        ];
+        const needsProcessing = statusParaBaixa.includes(statusNormalized);
+        
+        if (needsProcessing) {
+          console.log(`🚀 PEDIDO MARCADO PARA BAIXA AUTOMÁTICA: #${order.numero} - Status: "${status}"`);
+        }
         
         // Processar data corretamente para evitar problemas de timezone
         let blingCreatedAt: Date | null = null;

@@ -95,17 +95,55 @@ export default function Sales() {
     }
   };
 
-  const handleForceUpdate = async (orderNumber: string) => {
+  const handleDebugOrder = async (orderNumber: string) => {
+    if (!accounts.length) return;
+    
     try {
-      const result = await api.forceUpdateOrderStatus(orderNumber, 'Verificado') as any;
+      const account = accounts[0]; // Usar primeira conta para teste
+      const response = await fetch(`/api/bling/debug-status/${account.id}/${orderNumber}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      const result = await response.json();
+      
+      console.log('🔍 DEBUG RESULTADO:', result);
+      
       if (result.success) {
-        showMessage('success', `Pedido #${orderNumber} atualizado para "Verificado" e baixa processada!`);
-        await loadBlingOrders(); // Recarregar dados
+        showMessage('info', `Debug concluído - Status: ${result.debug.finalStatus} (Precisa baixa: ${result.debug.needsProcessing ? 'SIM' : 'NÃO'})`);
       } else {
-        showMessage('error', result.error || 'Erro ao forçar atualização');
+        showMessage('error', `Erro no debug: ${result.error}`);
       }
     } catch (error: any) {
-      showMessage('error', 'Erro ao forçar atualização: ' + error.message);
+      console.error('Erro no debug:', error);
+      showMessage('error', `Erro no debug: ${error.message}`);
+    }
+  };
+
+  const handleForceSyncOrder = async (orderNumber: string) => {
+    if (!accounts.length) return;
+    
+    try {
+      const account = accounts[0]; // Usar primeira conta para teste
+      const response = await fetch(`/api/bling/force-sync-order/${account.id}/${orderNumber}`, {
+        method: 'POST',
+        headers: { 
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const result = await response.json();
+      
+      console.log('🔧 FORÇA SYNC RESULTADO:', result);
+      
+      if (result.success) {
+        showMessage('success', result.message);
+        // Recarregar dados
+        await loadBlingOrders();
+      } else {
+        showMessage('error', `Erro na sincronização: ${result.error}`);
+      }
+    } catch (error: any) {
+      console.error('Erro na sincronização forçada:', error);
+      showMessage('error', `Erro na sincronização: ${error.message}`);
     }
   };
 
@@ -379,6 +417,7 @@ export default function Sales() {
                     <th className={"px-6 py-3 text-left text-xs font-medium uppercase tracking-wider " + (isDarkMode ? 'text-gray-400' : 'text-gray-500')}>Valor</th>
                     <th className={"px-6 py-3 text-left text-xs font-medium uppercase tracking-wider " + (isDarkMode ? 'text-gray-400' : 'text-gray-500')}>Status</th>
                     <th className={"px-6 py-3 text-left text-xs font-medium uppercase tracking-wider " + (isDarkMode ? 'text-gray-400' : 'text-gray-500')}>Baixa</th>
+                    <th className={"px-6 py-3 text-left text-xs font-medium uppercase tracking-wider " + (isDarkMode ? 'text-gray-400' : 'text-gray-500')}>Debug</th>
                   </tr>
                 </thead>
                 <tbody className={"divide-y " + (isDarkMode ? 'divide-white/10' : 'divide-gray-200')}>
@@ -403,13 +442,27 @@ export default function Sales() {
                           <button onClick={() => navigate('/new-sale')} className={"px-2 py-1 rounded text-xs font-medium " + (isDarkMode ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' : 'bg-purple-100 text-purple-700 hover:bg-purple-200')}>
                             Dar Baixa
                           </button>
-                        ) : order.status === 'Reagendado' ? (
-                          <button onClick={() => handleForceUpdate(order.orderNumber)} className={"px-2 py-1 rounded text-xs font-medium " + (isDarkMode ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-red-100 text-red-700 hover:bg-red-200')}>
-                            🔧 Forçar "Verificado"
-                          </button>
                         ) : (
                           <span className={"text-xs " + (isDarkMode ? 'text-gray-500' : 'text-gray-400')}>-</span>
                         )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex gap-1">
+                          <button 
+                            onClick={() => handleDebugOrder(order.orderNumber)} 
+                            className={"px-2 py-1 rounded text-xs font-medium " + (isDarkMode ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' : 'bg-blue-100 text-blue-700 hover:bg-blue-200')}
+                            title="Debug Status"
+                          >
+                            🔍
+                          </button>
+                          <button 
+                            onClick={() => handleForceSyncOrder(order.orderNumber)} 
+                            className={"px-2 py-1 rounded text-xs font-medium " + (isDarkMode ? 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30' : 'bg-orange-100 text-orange-700 hover:bg-orange-200')}
+                            title="Forçar Sync"
+                          >
+                            🔧
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
