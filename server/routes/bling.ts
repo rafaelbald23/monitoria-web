@@ -572,28 +572,7 @@ router.get('/debug-status/:accountId/:orderNumber', authMiddleware, async (req: 
     // ANÁLISE COMPLETA DO STATUS
     const situacao = targetOrder.situacao || {};
     
-    // Testar todos os campos possíveis
-    const allPossibleFields: Record<string, any> = {
-      'situacao_id': situacao.id,
-      'situacao_nome': situacao.nome,
-      'situacao_descricao': situacao.descricao,
-      'situacao_valor': situacao.valor,
-      'situacao_texto': situacao.texto,
-      'situacao_status': situacao.status,
-      'situacao_situacao': situacao.situacao,
-      'order_status': targetOrder.status,
-      'order_situacao_nome': targetOrder.situacao_nome,
-      'order_situacao_descricao': targetOrder.situacao_descricao,
-    };
-
-    // Verificar se há campos aninhados
-    if (situacao.situacao && typeof situacao.situacao === 'object') {
-      allPossibleFields['situacao_situacao_nome'] = situacao.situacao.nome;
-      allPossibleFields['situacao_situacao_descricao'] = situacao.situacao.descricao;
-      allPossibleFields['situacao_situacao_valor'] = situacao.situacao.valor;
-    }
-
-    // Aplicar a mesma lógica do código principal
+    // Aplicar a mesma lógica de mapeamento do código principal
     const possibleStatusFields = [
       situacao.nome,
       situacao.descricao,
@@ -616,7 +595,7 @@ router.get('/debug-status/:accountId/:orderNumber', authMiddleware, async (req: 
       const field = possibleStatusFields[i];
       if (field && typeof field === 'string' && field.trim().length > 0) {
         statusTexto = field.trim();
-        foundField = `possibleStatusFields[${i}]`;
+        foundField = `campo ${i + 1}`;
         break;
       }
     }
@@ -655,15 +634,12 @@ router.get('/debug-status/:accountId/:orderNumber', authMiddleware, async (req: 
       success: true,
       debug: {
         orderNumber,
-        rawOrder: targetOrder,
-        situacaoCompleta: situacao,
-        allPossibleFields,
+        situacaoId: situacao.id,
         statusTextoEncontrado: statusTexto,
         foundField,
         finalStatus,
         needsProcessing,
         statusNormalized,
-        statusParaBaixa,
         // Comparação com banco de dados
         dbOrder: await prisma.blingOrder.findFirst({
           where: {

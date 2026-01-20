@@ -96,13 +96,25 @@ export default function Sales() {
   };
 
   const handleDebugOrder = async (orderNumber: string) => {
-    if (!accounts.length) return;
+    if (!accounts.length) {
+      showMessage('error', 'Nenhuma conta conectada');
+      return;
+    }
     
     try {
       const account = accounts[0]; // Usar primeira conta para teste
       const response = await fetch(`/api/bling/debug-status/${account.id}/${orderNumber}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        method: 'GET',
+        headers: { 
+          Authorization: `Bearer ${localStorage.getItem('accessToken') || localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
       });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
       const result = await response.json();
       
       console.log('🔍 DEBUG RESULTADO:', result);
@@ -119,17 +131,25 @@ export default function Sales() {
   };
 
   const handleForceSyncOrder = async (orderNumber: string) => {
-    if (!accounts.length) return;
+    if (!accounts.length) {
+      showMessage('error', 'Nenhuma conta conectada');
+      return;
+    }
     
     try {
       const account = accounts[0]; // Usar primeira conta para teste
       const response = await fetch(`/api/bling/force-sync-order/${account.id}/${orderNumber}`, {
         method: 'POST',
         headers: { 
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('accessToken') || localStorage.getItem('token')}`,
           'Content-Type': 'application/json'
         }
       });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
       const result = await response.json();
       
       console.log('🔧 FORÇA SYNC RESULTADO:', result);
