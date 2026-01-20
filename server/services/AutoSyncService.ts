@@ -97,13 +97,15 @@ async function syncAccountOrders(account: any): Promise<{ success: boolean; proc
     }
 
     // Mapear status do Bling
+    // CORREÇÃO CRÍTICA: ID 24 deve ser "Verificado" não "Reagendado"
     const statusMap: Record<number, string> = {
       0: 'Em Aberto', 1: 'Atendido', 2: 'Cancelado', 3: 'Em Andamento', 4: 'Venda Agenciada',
       5: 'Verificado', 6: 'Aguardando', 7: 'Não Entregue', 8: 'Entregue', 9: 'Em Digitação',
       10: 'Checado', 11: 'Enviado', 12: 'Pronto para Envio', 13: 'Pendente', 14: 'Faturado',
       15: 'Pronto', 16: 'Impresso', 17: 'Separado', 18: 'Embalado', 19: 'Coletado',
       20: 'Em Trânsito', 21: 'Devolvido', 22: 'Extraviado', 23: 'Tentativa de Entrega',
-      24: 'Reagendado', 25: 'Bloqueado', 26: 'Suspenso', 27: 'Processando',
+      24: 'Verificado', // CORREÇÃO: Era "Reagendado", agora é "Verificado"
+      25: 'Bloqueado', 26: 'Suspenso', 27: 'Processando',
       28: 'Aprovado', 29: 'Reprovado', 30: 'Estornado',
     };
 
