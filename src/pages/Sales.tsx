@@ -15,10 +15,11 @@ interface BlingOrder {
   status: string;
   customerName: string | null;
   totalAmount: number;
-  items: any[];
+  items: string; // JSON string that needs to be parsed
   isProcessed: boolean;
   createdAt: string;
   blingCreatedAt: string | null;
+  processedAt?: string | null; // Add this field to match OrderDetails
 }
 
 interface Account {
@@ -37,7 +38,7 @@ export default function Sales() {
   const [filter, setFilter] = useState('all');
   const [stats, setStats] = useState({ totalOrders: 0, totalRevenue: 0, verified: 0, processed: 0 });
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
-  const [selectedOrder, setSelectedOrder] = useState<BlingOrder | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const showMessage = (type: 'success' | 'error' | 'info', text: string) => {
@@ -99,7 +100,13 @@ export default function Sales() {
   };
 
   const handleOrderClick = (order: BlingOrder) => {
-    setSelectedOrder(order);
+    // Convert BlingOrder to OrderDetails format for the modal
+    const orderDetails = {
+      ...order,
+      items: order.items ? JSON.parse(order.items) : [],
+      processedAt: order.processedAt || null
+    };
+    setSelectedOrder(orderDetails as any);
     setIsModalOpen(true);
   };
 

@@ -209,7 +209,7 @@ export default function OrderDetailsModal({ isOpen, onClose, order, onProcessOrd
                         const sku = item.codigo || item.produto?.codigo;
                         const nome = item.nome || item.produto?.nome;
                         const ean = item.ean || item.produto?.ean;
-                        const match = productMatches[sku] || productMatches[ean] || productMatches[nome];
+                        const match = (sku && productMatches[sku]) || (ean && productMatches[ean]) || (nome && productMatches[nome]);
                         
                         return (
                           <tr key={index} className={`transition-colors ${isDarkMode ? 'hover:bg-white/5' : 'hover:bg-gray-50'}`}>

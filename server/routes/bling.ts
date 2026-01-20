@@ -328,7 +328,7 @@ router.post('/force-sync-order/:accountId/:orderNumber', authMiddleware, async (
     }
 
     // Processar data
-    let blingCreatedAt = null;
+    let blingCreatedAt: Date | null = null;
     if (targetOrder.data) {
       if (typeof targetOrder.data === 'string' && targetOrder.data.match(/^\d{4}-\d{2}-\d{2}$/)) {
         blingCreatedAt = new Date(targetOrder.data + 'T12:00:00.000Z');
@@ -595,7 +595,7 @@ router.post('/match-products', authMiddleware, async (req: AuthRequest, res: Res
 
       console.log(`🔍 Buscando: SKU="${sku}", Nome="${nome}", EAN="${ean}"`);
 
-      let match = null;
+      let match: any = null;
 
       // 1. Buscar por SKU exato
       if (sku) {
@@ -1528,7 +1528,7 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
                 
                 console.log(`📦 Processando item: SKU="${sku}", Nome="${nome}", EAN="${ean}", Qtd=${quantidade}`);
 
-                let product = null;
+                let product: any = null;
 
                 // 1. Buscar por SKU exato
                 if (sku) {
