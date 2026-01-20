@@ -1513,14 +1513,7 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
 
             processedCount++;
 
-            // 🚀 BAIXA AUTOMÁTICA NO ESTOQUE (APENAS para status "Verificado" e pedidos não processados)
-            if (orderData.needsProcessing && !savedOrder.isProcessed) {
-              console.log(`🔥 BAIXA AUTOMÁTICA ATIVADA para pedido #${orderData.orderNumber} - Status: "${orderData.status}"`);
-              
-              const items = JSON.parse(orderData.items);
-              let produtosProcessados = 0;
-
-              // 🚀 BAIXA AUTOMÁTICA NO ESTOQUE com correspondência melhorada
+            // 🚀 BAIXA AUTOMÁTICA NO ESTOQUE com correspondência melhorada
             if (orderData.needsProcessing && !savedOrder.isProcessed) {
               console.log(`🔥 BAIXA AUTOMÁTICA ATIVADA para pedido #${orderData.orderNumber} - Status: "${orderData.status}"`);
               
