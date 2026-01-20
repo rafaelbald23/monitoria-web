@@ -95,6 +95,50 @@ export default function Sales() {
     }
   };
 
+  const handleInvestigateOrder = async (orderNumber: string) => {
+    if (!accounts.length) {
+      showMessage('error', 'Nenhuma conta conectada');
+      return;
+    }
+    
+    try {
+      const account = accounts[0];
+      const response = await fetch(`/api/bling/investigate-order/${account.id}/${orderNumber}`, {
+        method: 'GET',
+        headers: { 
+          Authorization: `Bearer ${localStorage.getItem('accessToken') || localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      
+      console.log('🔍 INVESTIGAÇÃO COMPLETA:', result);
+      
+      if (result.success) {
+        const inv = result.investigation;
+        const msg = `INVESTIGAÇÃO #${orderNumber}:
+        
+DB: ${inv.database.status || 'NÃO ENCONTRADO'}
+Bling: ${inv.bling.finalStatusCalculado}
+Campo usado: ${inv.bling.foundField || 'ID: ' + inv.bling.situacaoId}
+Precisa atualizar: ${inv.comparison.needsUpdate ? 'SIM' : 'NÃO'}
+Deve processar estoque: ${inv.comparison.shouldProcessStock ? 'SIM' : 'NÃO'}`;
+        
+        showMessage('info', msg);
+      } else {
+        showMessage('error', `Erro na investigação: ${result.error}`);
+      }
+    } catch (error: any) {
+      console.error('Erro na investigação:', error);
+      showMessage('error', `Erro na investigação: ${error.message}`);
+    }
+  };
+
   const handleDebugOrder = async (orderNumber: string) => {
     if (!accounts.length) {
       showMessage('error', 'Nenhuma conta conectada');
@@ -468,6 +512,13 @@ export default function Sales() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex gap-1">
+                          <button 
+                            onClick={() => handleInvestigateOrder(order.orderNumber)} 
+                            className={"px-2 py-1 rounded text-xs font-medium " + (isDarkMode ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' : 'bg-purple-100 text-purple-700 hover:bg-purple-200')}
+                            title="Investigar Status"
+                          >
+                            🕵️
+                          </button>
                           <button 
                             onClick={() => handleDebugOrder(order.orderNumber)} 
                             className={"px-2 py-1 rounded text-xs font-medium " + (isDarkMode ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' : 'bg-blue-100 text-blue-700 hover:bg-blue-200')}

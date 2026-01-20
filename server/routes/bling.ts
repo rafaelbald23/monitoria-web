@@ -529,6 +529,150 @@ router.post('/force-update-status', authMiddleware, async (req: AuthRequest, res
   }
 });
 
+// INVESTIGAÇÃO ESPECÍFICA: Comparar status Bling vs Sistema
+router.get('/investigate-order/:accountId/:orderNumber', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { accountId, orderNumber } = req.params;
+    const userId = req.user!.userId;
+
+    console.log(`🔍 INVESTIGAÇÃO: Pedido #${orderNumber}`);
+
+    const account = await prisma.blingAccount.findFirst({
+      where: { id: accountId, userId },
+    });
+
+    if (!account || !account.accessToken) {
+      return res.json({ success: false, error: 'Conta não conectada' });
+    }
+
+    // Check if token expired and refresh if needed
+    let accessToken = account.accessToken;
+    if (account.tokenExpiresAt && new Date(account.tokenExpiresAt) < new Date()) {
+      try {
+        accessToken = await refreshAccessToken(account);
+      } catch (refreshError: any) {
+        return res.json({ success: false, error: 'Token expirado. Reconecte a conta Bling.' });
+      }
+    }
+
+    // 1. Buscar no banco de dados local
+    const dbOrder = await prisma.blingOrder.findFirst({
+      where: {
+        OR: [
+          { orderNumber: String(orderNumber) },
+          { blingOrderId: String(orderNumber) }
+        ],
+        accountId,
+        userId,
+      },
+    });
+
+    // 2. Buscar na API do Bling
+    const response = await axios.get(`${BLING_API_URL}/pedidos/vendas?limite=100&pagina=1`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+      timeout: 15000,
+    });
+
+    const orders = response.data?.data || [];
+    const blingOrder = orders.find((o: any) => String(o.numero) === orderNumber || String(o.id) === orderNumber);
+
+    if (!blingOrder) {
+      return res.json({ success: false, error: 'Pedido não encontrado na API do Bling' });
+    }
+
+    // 3. Analisar situação do Bling
+    const situacao = blingOrder.situacao || {};
+    
+    console.log(`📋 SITUAÇÃO BRUTA DO BLING:`, JSON.stringify(situacao, null, 2));
+    
+    // 4. Aplicar nossa lógica de mapeamento
+    const possibleStatusFields = [
+      { field: 'situacao.nome', value: situacao.nome },
+      { field: 'situacao.descricao', value: situacao.descricao },
+      { field: 'situacao.valor', value: situacao.valor },
+      { field: 'situacao.texto', value: situacao.texto },
+      { field: 'situacao.status', value: situacao.status },
+      { field: 'situacao.situacao', value: situacao.situacao },
+      { field: 'order.status', value: blingOrder.status },
+      { field: 'order.situacao_nome', value: blingOrder.situacao_nome },
+      { field: 'order.situacao_descricao', value: blingOrder.situacao_descricao },
+    ];
+    
+    let statusTexto = '';
+    let foundField = '';
+    
+    for (const item of possibleStatusFields) {
+      if (item.value && typeof item.value === 'string' && item.value.trim().length > 0) {
+        statusTexto = item.value.trim();
+        foundField = item.field;
+        break;
+      }
+    }
+
+    // 5. Mapear por ID se não encontrou texto
+    const statusMap: Record<number, string> = {
+      0: 'Em Aberto', 1: 'Atendido', 2: 'Cancelado', 3: 'Em Andamento', 4: 'Venda Agenciada',
+      5: 'Verificado', 6: 'Aguardando', 7: 'Não Entregue', 8: 'Entregue', 9: 'Em Digitação',
+      10: 'Checado', 11: 'Enviado', 12: 'Pronto para Envio', 13: 'Pendente', 14: 'Faturado',
+      15: 'Pronto', 16: 'Impresso', 17: 'Separado', 18: 'Embalado', 19: 'Coletado',
+      20: 'Em Trânsito', 21: 'Devolvido', 22: 'Extraviado', 23: 'Tentativa de Entrega',
+      24: 'Reagendado', 25: 'Bloqueado', 26: 'Suspenso', 27: 'Processando',
+      28: 'Aprovado', 29: 'Reprovado', 30: 'Estornado',
+    };
+
+    let finalStatus: string;
+    if (statusTexto && statusTexto.length > 0) {
+      finalStatus = statusTexto;
+    } else if (situacao.id !== undefined && statusMap[situacao.id]) {
+      finalStatus = statusMap[situacao.id];
+    } else if (situacao.id !== undefined) {
+      finalStatus = `Status ${situacao.id}`;
+    } else {
+      finalStatus = 'Aguardando Processamento';
+    }
+
+    console.log(`🎯 RESULTADO DA INVESTIGAÇÃO:`);
+    console.log(`   - Status no DB: ${dbOrder?.status || 'NÃO ENCONTRADO'}`);
+    console.log(`   - Status calculado do Bling: ${finalStatus}`);
+    console.log(`   - Campo usado: ${foundField || 'ID: ' + situacao.id}`);
+    console.log(`   - Valor bruto: ${statusTexto || situacao.id}`);
+
+    res.json({
+      success: true,
+      investigation: {
+        orderNumber,
+        database: {
+          found: !!dbOrder,
+          status: dbOrder?.status,
+          isProcessed: dbOrder?.isProcessed,
+          createdAt: dbOrder?.createdAt,
+          updatedAt: dbOrder?.updatedAt,
+        },
+        bling: {
+          situacaoId: situacao.id,
+          situacaoCompleta: situacao,
+          possibleFields: possibleStatusFields,
+          statusTextoEncontrado: statusTexto,
+          foundField,
+          finalStatusCalculado: finalStatus,
+        },
+        comparison: {
+          statusMatch: dbOrder?.status === finalStatus,
+          needsUpdate: dbOrder?.status !== finalStatus,
+          shouldProcessStock: ['verificado', 'checado', 'aprovado', 'pronto para envio'].includes(finalStatus.toLowerCase()),
+        }
+      }
+    });
+
+  } catch (error: any) {
+    console.error('❌ Erro na investigação:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // DEBUG AVANÇADO: Rota para testar status de um pedido específico
 router.get('/debug-status/:accountId/:orderNumber', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
