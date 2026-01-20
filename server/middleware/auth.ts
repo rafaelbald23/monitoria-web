@@ -15,7 +15,15 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
   const authHeader = req.headers.authorization;
   const token = authHeader?.split(' ')[1] || req.cookies?.token;
 
+  console.log('🔐 Auth Debug:', {
+    authHeader: authHeader ? 'presente' : 'ausente',
+    token: token ? 'presente' : 'ausente',
+    tokenLength: token?.length || 0,
+    cookies: Object.keys(req.cookies || {}),
+  });
+
   if (!token) {
+    console.log('❌ Token não fornecido');
     return res.status(401).json({ error: 'Token não fornecido' });
   }
 
@@ -25,9 +33,11 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
       username: string;
       role: string;
     };
+    console.log('✅ Token válido para usuário:', decoded.username);
     req.user = decoded;
     next();
-  } catch (error) {
+  } catch (error: any) {
+    console.log('❌ Token inválido:', error.message);
     return res.status(401).json({ error: 'Token inválido' });
   }
 }

@@ -10,7 +10,10 @@ async function request<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const token = localStorage.getItem('accessToken');
+  // Tentar pegar o token de diferentes locais para compatibilidade
+  const token = localStorage.getItem('accessToken') || 
+                localStorage.getItem('token') ||
+                JSON.parse(localStorage.getItem('auth-storage') || '{}')?.state?.accessToken;
 
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
@@ -24,10 +27,16 @@ async function request<T>(
   });
 
   if (response.status === 401) {
+    // Limpar todos os tokens possíveis
     localStorage.removeItem('accessToken');
+    localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('auth-storage');
-    window.location.href = '/login';
+    
+    // Redirecionar para login apenas se não estivermos já na página de login
+    if (!window.location.pathname.includes('/login')) {
+      window.location.href = '/login';
+    }
     throw new Error('Sessão expirada');
   }
 
@@ -138,7 +147,10 @@ export const api = {
   
   // SOLUÇÃO DEFINITIVA: Forçar atualização de status
   forceUpdateOrderStatus: (orderNumber: string, newStatus: string) =>
-    request('/bling/force-update-status', 'POST', { orderNumber, newStatus }),
+    request('/bling/force-update-status', {
+      method: 'POST',
+      body: JSON.stringify({ orderNumber, newStatus }),
+    }),
   processOrder: (orderId: string) =>
     request(`/bling/orders/${orderId}/process`, {
       method: 'POST',
