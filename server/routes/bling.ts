@@ -287,19 +287,25 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
           await new Promise(resolve => setTimeout(resolve, 200));
         }
         
-        console.log(`🔍 Fazendo requisição para página ${page}...`);
+        console.log(`Fazendo requisição para página ${page}...`);
         const response = await axios.get(`${BLING_API_URL}/pedidos/vendas?limite=100&pagina=${page}`, {
           headers: {
             Authorization: `Bearer ${accessToken}`,
             Accept: 'application/json',
           },
-          timeout: 10000, // 10 segundos timeout
+          timeout: 15000, // Aumentar timeout para 15 segundos
         });
 
-        console.log(`📄 Página ${page} - Status:`, response.status);
+        console.log(`Página ${page} - Status:`, response.status);
+        console.log(`Página ${page} - Headers:`, response.headers['content-type']);
         
         const orders = response.data?.data || [];
-        console.log(`📄 Página ${page} - Pedidos encontrados:`, orders.length);
+        console.log(`Página ${page} - Pedidos encontrados:`, orders.length);
+        
+        // Log da estrutura do primeiro pedido para debug
+        if (orders.length > 0 && page === 1) {
+          console.log('Estrutura do primeiro pedido:', JSON.stringify(orders[0], null, 2));
+        }
         
         allOrders = allOrders.concat(orders);
 
@@ -309,9 +315,30 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
           page++;
         }
       } catch (apiError: any) {
-        console.error('❌ Erro na API Bling:', apiError.response?.status, apiError.response?.data);
+        console.error('Erro na API Bling:');
+        console.error('- Status:', apiError.response?.status);
+        console.error('- Status Text:', apiError.response?.statusText);
+        console.error('- Data:', JSON.stringify(apiError.response?.data, null, 2));
+        console.error('- Headers:', apiError.response?.headers);
+        console.error('- Config URL:', apiError.config?.url);
+        console.error('- Message:', apiError.message);
         
-        lastError = apiError.response?.data?.error?.message || apiError.response?.data?.error?.description || `Erro ${apiError.response?.status}`;
+        // Capturar mensagem de erro mais específica
+        let errorMessage = 'Erro na busca pedidos';
+        
+        if (apiError.response?.data?.error?.message) {
+          errorMessage = apiError.response.data.error.message;
+        } else if (apiError.response?.data?.error?.description) {
+          errorMessage = apiError.response.data.error.description;
+        } else if (apiError.response?.data?.message) {
+          errorMessage = apiError.response.data.message;
+        } else if (apiError.response?.statusText) {
+          errorMessage = `${apiError.response.status} - ${apiError.response.statusText}`;
+        } else if (apiError.message) {
+          errorMessage = apiError.message;
+        }
+        
+        lastError = errorMessage;
         
         // Se for 429 (rate limit), aguarda menos tempo
         if (apiError.response?.status === 429) {
@@ -322,14 +349,22 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
         
         // Se for 401, tenta renovar o token
         if (apiError.response?.status === 401) {
+          console.log('Token inválido (401), tentando renovar...');
           try {
-            console.log('🔄 Token inválido, tentando renovar...');
             accessToken = await refreshAccessToken(account);
+            console.log('Token renovado com sucesso, tentando novamente...');
             continue; // Tenta novamente com o novo token
           } catch (refreshError: any) {
-            console.error('❌ Falha ao renovar token:', refreshError.message);
+            console.error('Falha ao renovar token:', refreshError.message);
             return res.json({ success: false, error: 'Token inválido. Reconecte a conta Bling.' });
           }
+        }
+        
+        // Se for erro de timeout ou conexão
+        if (apiError.code === 'ECONNABORTED' || apiError.code === 'ETIMEDOUT') {
+          console.log('Timeout na requisição, tentando novamente...');
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          continue;
         }
         
         hasMore = false;
