@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma.js';
 import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 
@@ -362,7 +363,6 @@ router.post('/zero-all-stock', authMiddleware, async (req: AuthRequest, res: Res
     }
 
     console.log(`Validando senha...`);
-    const bcrypt = await import('bcryptjs');
     const isPasswordValid = await bcrypt.compare(ownerPassword, ownerUser.password);
 
     if (!isPasswordValid) {
