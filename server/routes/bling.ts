@@ -8,6 +8,31 @@ const router = Router();
 const BLING_AUTH_URL = 'https://www.bling.com.br/Api/v3/oauth/authorize';
 const BLING_TOKEN_URL = 'https://www.bling.com.br/Api/v3/oauth/token';
 
+// Função auxiliar para buscar detalhes completos de um pedido
+async function fetchOrderDetails(orderId: string, accessToken: string): Promise<any> {
+  const BLING_API_URL = 'https://www.bling.com.br/Api/v3';
+  
+  try {
+    console.log(`🔍 Buscando detalhes completos do pedido #${orderId}...`);
+    const response = await axios.get(`${BLING_API_URL}/pedidos/vendas/${orderId}`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+      timeout: 15000,
+    });
+    
+    if (response.data?.data) {
+      console.log(`✅ Detalhes completos obtidos com ${(response.data.data.itens || []).length} itens`);
+      return response.data.data;
+    }
+  } catch (error: any) {
+    console.log(`⚠️ Erro ao buscar detalhes: ${error.message}`);
+  }
+  
+  return null;
+}
+
 // Detecta automaticamente a URL base
 function getRedirectUri(req: Request): string {
   // Prioridade: variável de ambiente > headers > fallback
@@ -338,6 +363,9 @@ router.post('/force-sync-order/:accountId/:orderNumber', authMiddleware, async (
     }
 
     // Salvar/atualizar no banco
+    console.log(`📦 ITENS DO PEDIDO #${targetOrder.numero}:`, JSON.stringify(targetOrder.itens || [], null, 2));
+    console.log(`📦 Total de itens: ${(targetOrder.itens || []).length}`);
+    
     const savedOrder = await prisma.blingOrder.upsert({
       where: {
         blingOrderId_accountId: {
@@ -1345,14 +1373,20 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
     
     for (const order of allOrders) {
       try {
+        // Buscar detalhes completos do pedido para garantir que temos todos os itens
+        const orderDetails = await fetchOrderDetails(order.id, accessToken);
+        const orderToUse = orderDetails || order;
+        
+        console.log(`📦 Pedido #${orderToUse.numero} - Itens: ${(orderToUse.itens || []).length}`);
+        
         // SOLUÇÃO DEFINITIVA: Capturar status da API Bling v3 de forma mais robusta
-        const situacao = order.situacao || {};
+        const situacao = orderToUse.situacao || {};
         const statusId = situacao.id;
         
         // LOG COMPLETO da estrutura para debug
-        console.log(`📋 ANÁLISE COMPLETA Pedido #${order.numero}:`);
+        console.log(`📋 ANÁLISE COMPLETA Pedido #${orderToUse.numero}:`);
         console.log(`   - situacao completa:`, JSON.stringify(situacao, null, 2));
-        console.log(`   - order keys:`, Object.keys(order));
+        console.log(`   - order keys:`, Object.keys(orderToUse));
         
         // NOVA ESTRATÉGIA: Testar TODOS os campos possíveis da situacao
         const possibleStatusFields = [
@@ -1364,9 +1398,9 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
           situacao.status,         // Campo status direto
           situacao.situacao,       // Campo situacao aninhado
           // Campos do pedido principal
-          order.status,
-          order.situacao_nome,
-          order.situacao_descricao,
+          orderToUse.status,
+          orderToUse.situacao_nome,
+          orderToUse.situacao_descricao,
           // Campos aninhados se existirem
           situacao.situacao?.nome,
           situacao.situacao?.descricao,
@@ -1424,27 +1458,27 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
         const needsProcessing = statusParaBaixa.includes(statusNormalized);
         
         if (needsProcessing) {
-          console.log(`🚀 PEDIDO MARCADO PARA BAIXA AUTOMÁTICA: #${order.numero} - Status: "${status}"`);
+          console.log(`🚀 PEDIDO MARCADO PARA BAIXA AUTOMÁTICA: #${orderToUse.numero} - Status: "${status}"`);
         }
         
         // Processar data corretamente para evitar problemas de timezone
         let blingCreatedAt: Date | null = null;
-        if (order.data) {
+        if (orderToUse.data) {
           // Se a data vem no formato YYYY-MM-DD, adiciona horário para evitar timezone offset
-          if (typeof order.data === 'string' && order.data.match(/^\d{4}-\d{2}-\d{2}$/)) {
-            blingCreatedAt = new Date(order.data + 'T12:00:00.000Z');
+          if (typeof orderToUse.data === 'string' && orderToUse.data.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            blingCreatedAt = new Date(orderToUse.data + 'T12:00:00.000Z');
           } else {
-            blingCreatedAt = new Date(order.data);
+            blingCreatedAt = new Date(orderToUse.data);
           }
         }
         
         ordersToProcess.push({
-          blingOrderId: String(order.id),
-          orderNumber: String(order.numero || order.id),
+          blingOrderId: String(orderToUse.id),
+          orderNumber: String(orderToUse.numero || orderToUse.id),
           status,
-          customerName: order.contato?.nome || null,
-          totalAmount: order.total || 0,
-          items: JSON.stringify(order.itens || []),
+          customerName: orderToUse.contato?.nome || null,
+          totalAmount: orderToUse.total || 0,
+          items: JSON.stringify(orderToUse.itens || []),
           blingCreatedAt,
           needsProcessing
         });
