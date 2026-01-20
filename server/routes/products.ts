@@ -322,11 +322,20 @@ router.post('/zero-all-stock', authMiddleware, async (req: AuthRequest, res: Res
         select: { id: true, username: true, name: true, password: true },
       });
       ownerUser = owner;
+      console.log(`Usuário atual é o dono: ${owner?.username}`);
     } else if (currentUser.owner) {
       // Se o usuário atual é funcionário, usar dados do dono
       ownerUser = currentUser.owner;
+      console.log(`Usuário é funcionário, dono: ${ownerUser.username}`);
     } else {
-      return res.status(400).json({ error: 'Não foi possível identificar o dono da conta' });
+      // Caso especial: usuário sem estrutura de dono definida
+      // Pode ser usuário antigo ou master, tratá-lo como dono
+      console.log(`Usuário sem estrutura de dono, tratando como dono: ${currentUser.username}`);
+      const owner = await prisma.user.findUnique({
+        where: { id: currentUser.id },
+        select: { id: true, username: true, name: true, password: true },
+      });
+      ownerUser = owner;
     }
 
     if (!ownerUser) {

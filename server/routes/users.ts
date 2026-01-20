@@ -48,6 +48,8 @@ router.get('/owner-info', authMiddleware, async (req: AuthRequest, res: Response
   try {
     const userId = req.user!.userId;
 
+    console.log(`Buscando informações do dono para usuário: ${userId}`);
+
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -66,12 +68,23 @@ router.get('/owner-info', authMiddleware, async (req: AuthRequest, res: Response
     });
 
     if (!user) {
+      console.log(`Usuário não encontrado: ${userId}`);
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
+
+    console.log(`Dados do usuário:`, {
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      isOwner: user.isOwner,
+      ownerId: user.ownerId,
+      hasOwner: !!user.owner
+    });
 
     // Determinar informações do dono
     if (user.isOwner) {
       // Se o usuário atual é o dono
+      console.log(`Usuário ${user.username} é o dono da conta`);
       res.json({
         ownerUsername: user.username,
         ownerName: user.name,
@@ -79,13 +92,21 @@ router.get('/owner-info', authMiddleware, async (req: AuthRequest, res: Response
       });
     } else if (user.owner) {
       // Se o usuário atual é funcionário
+      console.log(`Usuário ${user.username} é funcionário, dono: ${user.owner.username}`);
       res.json({
         ownerUsername: user.owner.username,
         ownerName: user.owner.name,
         isCurrentUserOwner: false,
       });
     } else {
-      res.status(400).json({ error: 'Não foi possível identificar o dono da conta' });
+      // Caso especial: usuário sem isOwner=true e sem ownerId
+      // Pode ser um usuário antigo ou master, vamos tratá-lo como dono
+      console.log(`Usuário ${user.username} sem estrutura de dono definida, tratando como dono`);
+      res.json({
+        ownerUsername: user.username,
+        ownerName: user.name,
+        isCurrentUserOwner: true,
+      });
     }
   } catch (error) {
     console.error('Erro ao buscar informações do dono:', error);
