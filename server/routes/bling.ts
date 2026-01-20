@@ -208,6 +208,65 @@ router.get('/check-auth/:accountId', authMiddleware, async (req: AuthRequest, re
 
 const BLING_API_URL = 'https://www.bling.com.br/Api/v3';
 
+// DEBUG: Rota temporária para investigar status do Bling
+router.get('/debug-order/:accountId/:orderNumber', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { accountId, orderNumber } = req.params;
+    const userId = req.user!.userId;
+
+    const account = await prisma.blingAccount.findFirst({
+      where: { id: accountId, userId },
+    });
+
+    if (!account || !account.accessToken) {
+      return res.json({ success: false, error: 'Conta não conectada' });
+    }
+
+    // Check if token expired and refresh if needed
+    let accessToken = account.accessToken;
+    if (account.tokenExpiresAt && new Date(account.tokenExpiresAt) < new Date()) {
+      try {
+        accessToken = await refreshAccessToken(account);
+      } catch (refreshError: any) {
+        return res.json({ success: false, error: 'Token expirado. Reconecte a conta Bling.' });
+      }
+    }
+
+    // Buscar pedido específico
+    const response = await axios.get(`${BLING_API_URL}/pedidos/vendas?limite=100&pagina=1`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+      timeout: 15000,
+    });
+
+    const orders = response.data?.data || [];
+    const targetOrder = orders.find((o: any) => String(o.numero) === orderNumber || String(o.id) === orderNumber);
+
+    if (!targetOrder) {
+      return res.json({ success: false, error: 'Pedido não encontrado' });
+    }
+
+    // Retornar dados brutos para debug
+    res.json({
+      success: true,
+      debug: {
+        orderNumber,
+        rawOrder: targetOrder,
+        situacao: targetOrder.situacao,
+        statusId: targetOrder.situacao?.id,
+        statusTexto: targetOrder.situacao?.valor || targetOrder.situacao?.nome || targetOrder.situacao?.descricao,
+        allFields: Object.keys(targetOrder.situacao || {}),
+      }
+    });
+
+  } catch (error: any) {
+    console.error('❌ Erro no debug:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Função para refresh do token
 async function refreshAccessToken(account: any): Promise<string> {
   const credentials = Buffer.from(`${account.clientId}:${account.clientSecret}`).toString('base64');
