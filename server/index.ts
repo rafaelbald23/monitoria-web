@@ -14,6 +14,7 @@ import blingRoutes from './routes/bling.js';
 import usersRoutes from './routes/users.js';
 import masterRoutes from './routes/master.js';
 import backupRoutes from './routes/backup.js';
+import { startAutoSync } from './services/AutoSyncService.js';
 
 dotenv.config();
 
@@ -60,4 +61,7 @@ if (process.env.NODE_ENV === 'production') {
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando em http://localhost:${PORT}`);
   console.log(`📊 API disponível em http://localhost:${PORT}/api`);
+  
+  // Iniciar sincronização automática do Bling
+  startAutoSync();
 });

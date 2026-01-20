@@ -426,7 +426,7 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
     
     // Preparar dados para operação em lote
     const ordersToProcess: any[] = [];
-    const statusParaBaixa = ['Faturado', 'Pronto para Envio', 'Enviado', 'Entregue'];
+    const statusParaBaixa = ['Verificado']; // APENAS status "Verificado" dá baixa automática
     
     for (const order of allOrders) {
       try {
@@ -526,9 +526,9 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
 
           processedCount++;
 
-          // 🚀 BAIXA AUTOMÁTICA NO ESTOQUE (apenas se mudou de status)
+          // 🚀 BAIXA AUTOMÁTICA NO ESTOQUE (APENAS para status "Verificado" e pedidos não processados)
           if (orderData.needsProcessing && !savedOrder.isProcessed) {
-            console.log(`🔥 Processando baixa automática para pedido #${orderData.orderNumber} (${orderData.status})`);
+            console.log(`🔥 Processando baixa automática para pedido #${orderData.orderNumber} - Status: ${orderData.status}`);
             
             const items = JSON.parse(orderData.items);
             let produtosProcessados = 0;
@@ -537,7 +537,10 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
               const sku = item.codigo || item.produto?.codigo;
               const quantidade = item.quantidade || 1;
               
-              if (!sku) continue;
+              if (!sku) {
+                console.log(`⚠️ Item sem SKU no pedido #${orderData.orderNumber}:`, item);
+                continue;
+              }
 
               // Buscar produto pelo SKU
               const product = await tx.product.findUnique({
@@ -545,6 +548,8 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
               });
 
               if (product) {
+                console.log(`📦 Dando baixa: ${quantidade}x ${product.name} (SKU: ${sku})`);
+                
                 // Criar movimento de saída
                 await tx.movement.create({
                   data: {
@@ -558,6 +563,8 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
                 });
                 
                 produtosProcessados++;
+              } else {
+                console.log(`⚠️ Produto não encontrado no estoque - SKU: ${sku}`);
               }
             }
 
@@ -571,7 +578,9 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
             });
 
             autoProcessedCount++;
-            console.log(`✅ Baixa automática: ${produtosProcessados} produtos processados`);
+            console.log(`✅ Baixa automática concluída: ${produtosProcessados} produtos processados para pedido #${orderData.orderNumber}`);
+          } else if (orderData.needsProcessing && savedOrder.isProcessed) {
+            console.log(`ℹ️ Pedido #${orderData.orderNumber} já foi processado anteriormente`);
           }
         } catch (upsertError: any) {
           console.error(`❌ Erro ao salvar pedido ${orderData.orderNumber}:`, upsertError.message);
