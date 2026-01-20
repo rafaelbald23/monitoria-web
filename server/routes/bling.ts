@@ -208,6 +208,97 @@ router.get('/check-auth/:accountId', authMiddleware, async (req: AuthRequest, re
 
 const BLING_API_URL = 'https://www.bling.com.br/Api/v3';
 
+// SOLUÇÃO DEFINITIVA: Rota para forçar atualização de status específico
+router.post('/force-update-status', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { orderNumber, newStatus } = req.body;
+    const userId = req.user!.userId;
+
+    console.log(`🔧 FORÇA ATUALIZAÇÃO: Pedido #${orderNumber} para status "${newStatus}"`);
+
+    // Buscar o pedido no banco
+    const order = await prisma.blingOrder.findFirst({
+      where: {
+        orderNumber: String(orderNumber),
+        userId,
+      },
+    });
+
+    if (!order) {
+      return res.json({ success: false, error: 'Pedido não encontrado' });
+    }
+
+    // Atualizar status forçadamente
+    const updatedOrder = await prisma.blingOrder.update({
+      where: { id: order.id },
+      data: {
+        status: newStatus,
+        isProcessed: newStatus === 'Verificado' ? false : order.isProcessed,
+        updatedAt: new Date(),
+      },
+    });
+
+    // Se mudou para "Verificado", processar baixa automática
+    if (newStatus === 'Verificado' && !updatedOrder.isProcessed) {
+      console.log(`🔥 PROCESSANDO BAIXA AUTOMÁTICA FORÇADA para pedido #${orderNumber}`);
+      
+      const items = JSON.parse(order.items);
+      let produtosProcessados = 0;
+
+      await prisma.$transaction(async (tx) => {
+        for (const item of items) {
+          const sku = item.codigo || item.produto?.codigo;
+          const quantidade = item.quantidade || 1;
+          
+          if (!sku) continue;
+
+          const product = await tx.product.findUnique({
+            where: { sku },
+          });
+
+          if (product) {
+            console.log(`📦 BAIXA FORÇADA: ${quantidade}x ${product.name} (SKU: ${sku})`);
+            
+            await tx.movement.create({
+              data: {
+                type: 'EXIT',
+                productId: product.id,
+                quantity: quantidade,
+                reason: `Baixa automática FORÇADA - Pedido #${orderNumber} (${newStatus})`,
+                userId,
+                syncStatus: 'synced',
+              },
+            });
+            
+            produtosProcessados++;
+          }
+        }
+
+        // Marcar como processado
+        await tx.blingOrder.update({
+          where: { id: order.id },
+          data: {
+            isProcessed: true,
+            processedAt: new Date(),
+          },
+        });
+      });
+
+      console.log(`✅ BAIXA FORÇADA CONCLUÍDA: ${produtosProcessados} produtos processados`);
+    }
+
+    res.json({ 
+      success: true, 
+      message: `Status atualizado para "${newStatus}"${newStatus === 'Verificado' ? ' e baixa processada' : ''}`,
+      order: updatedOrder 
+    });
+
+  } catch (error: any) {
+    console.error('❌ Erro na atualização forçada:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // DEBUG: Rota temporária para investigar status do Bling
 router.get('/debug-order/:accountId/:orderNumber', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {

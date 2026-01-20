@@ -135,6 +135,10 @@ export const api = {
     request(`/bling/orders/verified/${accountId}`),
   getAllBlingOrders: (accountId: string) =>
     request(`/bling/orders/all/${accountId}`),
+  
+  // SOLUÇÃO DEFINITIVA: Forçar atualização de status
+  forceUpdateOrderStatus: (orderNumber: string, newStatus: string) =>
+    request('/bling/force-update-status', 'POST', { orderNumber, newStatus }),
   processOrder: (orderId: string) =>
     request(`/bling/orders/${orderId}/process`, {
       method: 'POST',

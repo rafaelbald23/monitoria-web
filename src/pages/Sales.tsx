@@ -95,6 +95,20 @@ export default function Sales() {
     }
   };
 
+  const handleForceUpdate = async (orderNumber: string) => {
+    try {
+      const result = await api.forceUpdateOrderStatus(orderNumber, 'Verificado') as any;
+      if (result.success) {
+        showMessage('success', `Pedido #${orderNumber} atualizado para "Verificado" e baixa processada!`);
+        await loadBlingOrders(); // Recarregar dados
+      } else {
+        showMessage('error', result.error || 'Erro ao forçar atualização');
+      }
+    } catch (error: any) {
+      showMessage('error', 'Erro ao forçar atualização: ' + error.message);
+    }
+  };
+
   const handleSyncOrders = async () => {
     setSyncing(true);
     try {
@@ -388,6 +402,10 @@ export default function Sales() {
                         ) : (order.status === 'Verificado' || order.status === 'Checado') ? (
                           <button onClick={() => navigate('/new-sale')} className={"px-2 py-1 rounded text-xs font-medium " + (isDarkMode ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' : 'bg-purple-100 text-purple-700 hover:bg-purple-200')}>
                             Dar Baixa
+                          </button>
+                        ) : order.status === 'Reagendado' ? (
+                          <button onClick={() => handleForceUpdate(order.orderNumber)} className={"px-2 py-1 rounded text-xs font-medium " + (isDarkMode ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-red-100 text-red-700 hover:bg-red-200')}>
+                            🔧 Forçar "Verificado"
                           </button>
                         ) : (
                           <span className={"text-xs " + (isDarkMode ? 'text-gray-500' : 'text-gray-400')}>-</span>
