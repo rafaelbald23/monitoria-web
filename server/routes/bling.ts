@@ -573,24 +573,24 @@ router.get('/debug-status/:accountId/:orderNumber', authMiddleware, async (req: 
     const situacao = targetOrder.situacao || {};
     
     // Testar todos os campos possíveis
-    const allPossibleFields = {
-      'situacao.id': situacao.id,
-      'situacao.nome': situacao.nome,
-      'situacao.descricao': situacao.descricao,
-      'situacao.valor': situacao.valor,
-      'situacao.texto': situacao.texto,
-      'situacao.status': situacao.status,
-      'situacao.situacao': situacao.situacao,
-      'order.status': targetOrder.status,
-      'order.situacao_nome': targetOrder.situacao_nome,
-      'order.situacao_descricao': targetOrder.situacao_descricao,
+    const allPossibleFields: Record<string, any> = {
+      'situacao_id': situacao.id,
+      'situacao_nome': situacao.nome,
+      'situacao_descricao': situacao.descricao,
+      'situacao_valor': situacao.valor,
+      'situacao_texto': situacao.texto,
+      'situacao_status': situacao.status,
+      'situacao_situacao': situacao.situacao,
+      'order_status': targetOrder.status,
+      'order_situacao_nome': targetOrder.situacao_nome,
+      'order_situacao_descricao': targetOrder.situacao_descricao,
     };
 
     // Verificar se há campos aninhados
     if (situacao.situacao && typeof situacao.situacao === 'object') {
-      allPossibleFields['situacao.situacao.nome'] = situacao.situacao.nome;
-      allPossibleFields['situacao.situacao.descricao'] = situacao.situacao.descricao;
-      allPossibleFields['situacao.situacao.valor'] = situacao.situacao.valor;
+      allPossibleFields['situacao_situacao_nome'] = situacao.situacao.nome;
+      allPossibleFields['situacao_situacao_descricao'] = situacao.situacao.descricao;
+      allPossibleFields['situacao_situacao_valor'] = situacao.situacao.valor;
     }
 
     // Aplicar a mesma lógica do código principal
