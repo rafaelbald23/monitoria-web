@@ -43,6 +43,56 @@ router.get('/me', authMiddleware, async (req: AuthRequest, res: Response) => {
   }
 });
 
+// Get owner info (for validation purposes)
+router.get('/owner-info', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        name: true,
+        isOwner: true,
+        ownerId: true,
+        owner: {
+          select: {
+            username: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+
+    // Determinar informações do dono
+    if (user.isOwner) {
+      // Se o usuário atual é o dono
+      res.json({
+        ownerUsername: user.username,
+        ownerName: user.name,
+        isCurrentUserOwner: true,
+      });
+    } else if (user.owner) {
+      // Se o usuário atual é funcionário
+      res.json({
+        ownerUsername: user.owner.username,
+        ownerName: user.owner.name,
+        isCurrentUserOwner: false,
+      });
+    } else {
+      res.status(400).json({ error: 'Não foi possível identificar o dono da conta' });
+    }
+  } catch (error) {
+    console.error('Erro ao buscar informações do dono:', error);
+    res.status(500).json({ error: 'Erro ao buscar informações do dono' });
+  }
+});
+
 // List users (for admin/owner)
 router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {

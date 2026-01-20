@@ -281,4 +281,143 @@ router.delete('/:id', authMiddleware, async (req: AuthRequest, res: Response) =>
   }
 });
 
+// Zerar todo o estoque
+router.post('/zero-all-stock', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    const { ownerPassword } = req.body;
+
+    console.log(`Iniciando processo de zerar todo estoque para usuário: ${userId}`);
+
+    // Buscar informações do usuário atual
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        isOwner: true,
+        ownerId: true,
+        owner: {
+          select: {
+            id: true,
+            username: true,
+            name: true,
+            password: true,
+          },
+        },
+      },
+    });
+
+    if (!currentUser) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+
+    // Determinar qual é o dono da conta e validar senha
+    let ownerUser: any;
+    
+    if (currentUser.isOwner) {
+      // Se o usuário atual é o dono, buscar sua própria senha
+      const owner = await prisma.user.findUnique({
+        where: { id: currentUser.id },
+        select: { id: true, username: true, name: true, password: true },
+      });
+      ownerUser = owner;
+    } else if (currentUser.owner) {
+      // Se o usuário atual é funcionário, usar dados do dono
+      ownerUser = currentUser.owner;
+    } else {
+      return res.status(400).json({ error: 'Não foi possível identificar o dono da conta' });
+    }
+
+    if (!ownerUser) {
+      return res.status(400).json({ error: 'Dados do dono da conta não encontrados' });
+    }
+
+    // Validar senha do dono
+    if (!ownerPassword) {
+      return res.status(400).json({ error: 'Senha do administrador é obrigatória' });
+    }
+
+    const bcrypt = await import('bcryptjs');
+    const isPasswordValid = await bcrypt.compare(ownerPassword, ownerUser.password);
+
+    if (!isPasswordValid) {
+      console.log(`Tentativa de zerar estoque com senha incorreta para o dono: ${ownerUser.username}`);
+      return res.status(403).json({ 
+        error: 'Senha do administrador incorreta',
+        ownerName: ownerUser.name 
+      });
+    }
+
+    console.log(`Senha do administrador validada: ${ownerUser.username}`);
+
+    // Buscar todos os produtos do usuário
+    const products = await prisma.product.findMany({
+      where: {
+        isActive: true,
+        mappings: {
+          some: {
+            account: {
+              userId: userId,
+            },
+          },
+        },
+      },
+      include: {
+        movements: {
+          where: { userId: userId },
+        },
+      },
+    });
+
+    console.log(`Encontrados ${products.length} produtos para zerar estoque`);
+
+    let processedCount = 0;
+    let zeroedCount = 0;
+
+    // Processar cada produto
+    for (const product of products) {
+      try {
+        // Calcular estoque atual
+        const currentStock = product.movements.reduce((sum, m) => {
+          return m.type === 'ENTRY' ? sum + m.quantity : sum - m.quantity;
+        }, 0);
+
+        // Se tem estoque, criar movimento para zerar
+        if (currentStock !== 0) {
+          await prisma.movement.create({
+            data: {
+              type: currentStock > 0 ? 'EXIT' : 'ENTRY',
+              productId: product.id,
+              quantity: Math.abs(currentStock),
+              reason: `Zerado em lote por ${currentUser.username} (autorizado pelo administrador ${ownerUser.name})`,
+              userId: userId,
+              syncStatus: 'completed',
+            },
+          });
+
+          console.log(`Produto ${product.name}: ${currentStock} → 0`);
+          zeroedCount++;
+        }
+
+        processedCount++;
+      } catch (productError) {
+        console.error(`Erro ao zerar produto ${product.name}:`, productError);
+      }
+    }
+
+    console.log(`Processo concluído: ${processedCount} produtos processados, ${zeroedCount} estoques zerados`);
+
+    res.json({
+      success: true,
+      message: `${zeroedCount} produtos tiveram o estoque zerado`,
+      processed: processedCount,
+      zeroed: zeroedCount,
+    });
+  } catch (error) {
+    console.error('Erro ao zerar todo estoque:', error);
+    res.status(500).json({ error: 'Erro ao zerar estoque' });
+  }
+});
+
 export default router;

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import { useTheme } from '../hooks/useTheme';
 import api from '../lib/api';
-import { PlusIcon, RefreshIcon, EditIcon, TrashIcon, AlertIcon, LinkIcon } from '../components/Icons';
+import { PlusIcon, RefreshIcon, EditIcon, TrashIcon, AlertIcon, LinkIcon, MinusCircleIcon } from '../components/Icons';
 import { ExportButton } from '../components/ExportButton';
 import { exportToCSV, exportToPDF, generateTableHTML } from '../utils/export';
 
@@ -31,6 +31,7 @@ export default function Products() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [zeroingStock, setZeroingStock] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -102,6 +103,64 @@ export default function Products() {
   const showMessage = (type: 'success' | 'error', text: string) => {
     setMessage({ type, text });
     setTimeout(() => setMessage(null), 4000);
+  };
+
+  const handleZeroAllStock = async () => {
+    // Primeira confirmação
+    const firstConfirm = window.confirm(
+      'ATENÇÃO: Esta ação irá zerar o estoque de TODOS os produtos!\n\n' +
+      'Tem certeza que deseja continuar?'
+    );
+
+    if (!firstConfirm) return;
+
+    setZeroingStock(true);
+    
+    try {
+      // Buscar informações do dono da conta
+      const ownerInfo = await api.getOwnerInfo() as any;
+      
+      if (!ownerInfo.ownerName) {
+        showMessage('error', 'Não foi possível identificar o administrador da conta');
+        return;
+      }
+
+      // Segunda confirmação com senha do administrador
+      const ownerPassword = window.prompt(
+        `CONFIRMAÇÃO DE SEGURANÇA:\n\n` +
+        `Para zerar todo o estoque, digite a senha do administrador da empresa:\n\n` +
+        `Administrador: ${ownerInfo.ownerName}\n` +
+        `Digite a senha:`
+      );
+
+      if (!ownerPassword) {
+        showMessage('error', 'Operação cancelada');
+        return;
+      }
+
+      // Fazer a requisição com validação de senha
+      const result = await api.zeroAllStock(ownerPassword) as any;
+      
+      if (result.success) {
+        showMessage('success', result.message || 'Estoque zerado com sucesso!');
+        await loadProducts(); // Recarregar produtos para mostrar estoque zerado
+      } else {
+        showMessage('error', result.error || 'Erro ao zerar estoque');
+      }
+    } catch (error: any) {
+      console.error('Erro ao zerar estoque:', error);
+      
+      // Tratar erro específico de senha incorreta
+      if (error.message.includes('Senha do administrador incorreta')) {
+        showMessage('error', 'Senha incorreta. Operação cancelada por segurança.');
+      } else if (error.message.includes('Senha do administrador é obrigatória')) {
+        showMessage('error', 'Senha do administrador é obrigatória.');
+      } else {
+        showMessage('error', error.message || 'Erro ao zerar estoque');
+      }
+    } finally {
+      setZeroingStock(false);
+    }
   };
 
   const formatPrice = (value: string) => {
@@ -232,6 +291,19 @@ export default function Products() {
           </div>
           <div className="flex gap-3">
             <ExportButton onExportCSV={handleExportCSV} onExportPDF={handleExportPDF} />
+            <button
+              onClick={handleZeroAllStock}
+              disabled={zeroingStock || products.length === 0}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-colors ${
+                isDarkMode 
+                  ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' 
+                  : 'bg-red-100 text-red-700 hover:bg-red-200'
+              } disabled:opacity-50`}
+              title="Zerar estoque de todos os produtos"
+            >
+              <MinusCircleIcon size={18} />
+              {zeroingStock ? 'Zerando...' : 'Zerar Estoque'}
+            </button>
             <button
               onClick={handleSyncBling}
               disabled={syncing || accounts.length === 0}

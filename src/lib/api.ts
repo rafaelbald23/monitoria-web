@@ -86,6 +86,11 @@ export const api = {
     request(`/products/${id}`, {
       method: 'DELETE',
     }),
+  zeroAllStock: (ownerPassword: string) =>
+    request('/products/zero-all-stock', {
+      method: 'POST',
+      body: JSON.stringify({ ownerPassword }),
+    }),
 
   // Sales
   getSales: () => request('/sales'),
@@ -171,6 +176,7 @@ export const api = {
 
   // User Info
   getUserInfo: () => request('/users/me'),
+  getOwnerInfo: () => request('/users/owner-info'),
 
   // Master Panel
   checkMaster: () => request('/master/check'),
