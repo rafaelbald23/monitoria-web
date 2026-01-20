@@ -497,24 +497,28 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
         console.log(`📋 Pedido #${order.numero}: statusId=${statusId}, statusTexto="${statusTexto}"`);
         console.log(`📋 Situação completa:`, JSON.stringify(order.situacao, null, 2));
         
-        // Lógica melhorada para mapear status - NUNCA retorna "Sem Status"
+        // NOVA LÓGICA: Priorizar o texto do status (que vem direto da tela do Bling)
         let status: string;
         
-        // 1. Primeiro tenta pelo ID (mais confiável)
-        if (statusId !== undefined && statusMap[statusId]) {
-          status = statusMap[statusId];
-        }
-        // 2. Se não tem ID ou não está mapeado, usa o texto da API
-        else if (statusTexto && typeof statusTexto === 'string' && statusTexto.trim().length > 0) {
+        // 1. PRIMEIRO: Usar o texto exato que vem da API (mais confiável)
+        if (statusTexto && typeof statusTexto === 'string' && statusTexto.trim().length > 0) {
           status = statusTexto.trim();
+          console.log(`✅ Status mapeado pelo texto: "${status}"`);
         }
-        // 3. Se tem ID mas não está no mapeamento, cria um status descritivo
+        // 2. FALLBACK: Tentar pelo ID se não tem texto
+        else if (statusId !== undefined && statusMap[statusId]) {
+          status = statusMap[statusId];
+          console.log(`✅ Status mapeado pelo ID ${statusId}: "${status}"`);
+        }
+        // 3. FALLBACK: Se tem ID mas não está no mapeamento
         else if (statusId !== undefined) {
           status = `Status ${statusId}`;
+          console.log(`⚠️ Status não mapeado, usando ID: "${status}"`);
         }
-        // 4. Último recurso - status padrão mais descritivo
+        // 4. ÚLTIMO RECURSO
         else {
           status = 'Aguardando Processamento';
+          console.log(`❌ Nenhum status encontrado, usando padrão: "${status}"`);
         }
         
         // Processar data corretamente para evitar problemas de timezone
