@@ -101,9 +101,18 @@ export default function Sales() {
 
   const handleOrderClick = (order: BlingOrder) => {
     // Convert BlingOrder to OrderDetails format for the modal
+    let parsedItems = [];
+    try {
+      // Se items já é um array, usa direto. Se é string, faz parse
+      parsedItems = typeof order.items === 'string' ? JSON.parse(order.items) : (order.items || []);
+    } catch (e) {
+      console.error('Erro ao fazer parse dos items:', e);
+      parsedItems = [];
+    }
+    
     const orderDetails = {
       ...order,
-      items: order.items ? JSON.parse(order.items) : [],
+      items: parsedItems,
       processedAt: order.processedAt || null
     };
     setSelectedOrder(orderDetails as any);
@@ -438,32 +447,48 @@ Deve processar estoque: ${inv.comparison.shouldProcessStock ? 'SIM' : 'NÃO'}`;
 
   const handleExportCSV = () => {
     // Preparar dados com detalhes dos produtos
-    const dataWithDetails = filteredOrders.map(order => ({
-      ...order,
-      itemsCount: order.items ? JSON.parse(order.items).length : 0,
-      itemsDetails: order.items ? 
-        JSON.parse(order.items).map((item: any) => {
+    const dataWithDetails = filteredOrders.map(order => {
+      let parsedItems = [];
+      try {
+        parsedItems = typeof order.items === 'string' ? JSON.parse(order.items) : (order.items || []);
+      } catch (e) {
+        parsedItems = [];
+      }
+      
+      return {
+        ...order,
+        itemsCount: parsedItems.length,
+        itemsDetails: parsedItems.map((item: any) => {
           const sku = item.codigo || item.produto?.codigo || '';
           const nome = item.nome || item.produto?.nome || '';
           const ean = item.ean || item.produto?.ean || '';
           const qtd = item.quantidade || 1;
           return `${nome} (SKU: ${sku}, EAN: ${ean}, Qtd: ${qtd})`;
-        }).join('; ') : ''
-    }));
+        }).join('; ')
+      };
+    });
     exportToCSV(dataWithDetails, 'pedidos-bling-detalhado', columns);
   };
   
   const handleExportPDF = () => {
-    const dataWithDetails = filteredOrders.map(order => ({
-      ...order,
-      itemsCount: order.items ? JSON.parse(order.items).length : 0,
-      itemsDetails: order.items ? 
-        JSON.parse(order.items).map((item: any) => {
+    const dataWithDetails = filteredOrders.map(order => {
+      let parsedItems = [];
+      try {
+        parsedItems = typeof order.items === 'string' ? JSON.parse(order.items) : (order.items || []);
+      } catch (e) {
+        parsedItems = [];
+      }
+      
+      return {
+        ...order,
+        itemsCount: parsedItems.length,
+        itemsDetails: parsedItems.map((item: any) => {
           const nome = item.nome || item.produto?.nome || '';
           const qtd = item.quantidade || 1;
           return `${nome} (${qtd}x)`;
-        }).join(', ') : ''
-    }));
+        }).join(', ')
+      };
+    });
     const tableHTML = generateTableHTML(dataWithDetails, columns);
     exportToPDF('Pedidos Bling - Detalhado com Produtos', tableHTML);
   };
@@ -612,11 +637,18 @@ Deve processar estoque: ${inv.comparison.shouldProcessStock ? 'SIM' : 'NÃO'}`;
                       <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                         <div className="flex items-center gap-2">
                           <span>#{order.orderNumber}</span>
-                          {order.items && JSON.parse(order.items).length > 0 && (
-                            <span className={`px-2 py-1 rounded text-xs ${isDarkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-700'}`}>
-                              {JSON.parse(order.items).length} item(s)
-                            </span>
-                          )}
+                          {(() => {
+                            try {
+                              const parsedItems = typeof order.items === 'string' ? JSON.parse(order.items) : (order.items || []);
+                              return parsedItems.length > 0 && (
+                                <span className={`px-2 py-1 rounded text-xs ${isDarkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-700'}`}>
+                                  {parsedItems.length} item(s)
+                                </span>
+                              );
+                            } catch (e) {
+                              return null;
+                            }
+                          })()}
                         </div>
                       </td>
                       <td className={`px-6 py-4 whitespace-nowrap text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
