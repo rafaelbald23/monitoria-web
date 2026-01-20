@@ -371,7 +371,12 @@ export default function Sales() {
                   {filteredOrders.map((order) => (
                     <tr key={order.id} className={"transition-colors " + (isDarkMode ? 'hover:bg-white/5' : 'hover:bg-gray-50')}>
                       <td className={"px-6 py-4 whitespace-nowrap text-sm font-medium " + (isDarkMode ? 'text-white' : 'text-gray-900')}>#{order.orderNumber}</td>
-                      <td className={"px-6 py-4 whitespace-nowrap text-sm " + (isDarkMode ? 'text-gray-300' : 'text-gray-700')}>{order.blingCreatedAt ? new Date(order.blingCreatedAt).toLocaleDateString('pt-BR') : new Date(order.createdAt).toLocaleDateString('pt-BR')}</td>
+                      <td className={"px-6 py-4 whitespace-nowrap text-sm " + (isDarkMode ? 'text-gray-300' : 'text-gray-700')}>
+                        {order.blingCreatedAt 
+                          ? new Date(order.blingCreatedAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+                          : new Date(order.createdAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+                        }
+                      </td>
                       <td className={"px-6 py-4 whitespace-nowrap text-sm " + (isDarkMode ? 'text-gray-300' : 'text-gray-700')}>{order.customerName || '-'}</td>
                       <td className={"px-6 py-4 whitespace-nowrap text-sm font-semibold " + (isDarkMode ? 'text-green-400' : 'text-green-600')}>{(order.totalAmount || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                       <td className="px-6 py-4 whitespace-nowrap">

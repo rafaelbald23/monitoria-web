@@ -454,6 +454,17 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
           status = 'Aguardando Processamento';
         }
         
+        // Processar data corretamente para evitar problemas de timezone
+        let blingCreatedAt = null;
+        if (order.data) {
+          // Se a data vem no formato YYYY-MM-DD, adiciona horário para evitar timezone offset
+          if (typeof order.data === 'string' && order.data.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            blingCreatedAt = new Date(order.data + 'T12:00:00.000Z');
+          } else {
+            blingCreatedAt = new Date(order.data);
+          }
+        }
+        
         ordersToProcess.push({
           blingOrderId: String(order.id),
           orderNumber: String(order.numero || order.id),
@@ -461,7 +472,7 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
           customerName: order.contato?.nome || null,
           totalAmount: order.total || 0,
           items: JSON.stringify(order.itens || []),
-          blingCreatedAt: order.data ? new Date(order.data) : null,
+          blingCreatedAt,
           needsProcessing: statusParaBaixa.includes(status)
         });
       } catch (orderError: any) {
