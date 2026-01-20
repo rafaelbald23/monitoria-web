@@ -288,6 +288,7 @@ router.post('/zero-all-stock', authMiddleware, async (req: AuthRequest, res: Res
     const { ownerPassword } = req.body;
 
     console.log(`Iniciando processo de zerar todo estoque para usuário: ${userId}`);
+    console.log(`Senha fornecida: ${ownerPassword ? '[FORNECIDA]' : '[NÃO FORNECIDA]'}`);
 
     // Buscar informações do usuário atual
     const currentUser = await prisma.user.findUnique({
@@ -309,8 +310,17 @@ router.post('/zero-all-stock', authMiddleware, async (req: AuthRequest, res: Res
     });
 
     if (!currentUser) {
+      console.log(`Usuário não encontrado: ${userId}`);
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
+
+    console.log(`Dados do usuário atual:`, {
+      id: currentUser.id,
+      username: currentUser.username,
+      isOwner: currentUser.isOwner,
+      ownerId: currentUser.ownerId,
+      hasOwner: !!currentUser.owner
+    });
 
     // Determinar qual é o dono da conta e validar senha
     let ownerUser: any;
@@ -339,28 +349,34 @@ router.post('/zero-all-stock', authMiddleware, async (req: AuthRequest, res: Res
     }
 
     if (!ownerUser) {
+      console.log(`Dados do dono não encontrados`);
       return res.status(400).json({ error: 'Dados do dono da conta não encontrados' });
     }
 
+    console.log(`Dono identificado: ${ownerUser.username} (${ownerUser.name})`);
+
     // Validar senha do dono
     if (!ownerPassword) {
+      console.log(`Senha não fornecida`);
       return res.status(400).json({ error: 'Senha do administrador é obrigatória' });
     }
 
+    console.log(`Validando senha...`);
     const bcrypt = await import('bcryptjs');
     const isPasswordValid = await bcrypt.compare(ownerPassword, ownerUser.password);
 
     if (!isPasswordValid) {
-      console.log(`Tentativa de zerar estoque com senha incorreta para o dono: ${ownerUser.username}`);
+      console.log(`Senha incorreta para o dono: ${ownerUser.username}`);
       return res.status(403).json({ 
         error: 'Senha do administrador incorreta',
         ownerName: ownerUser.name 
       });
     }
 
-    console.log(`Senha do administrador validada: ${ownerUser.username}`);
+    console.log(`Senha validada com sucesso para: ${ownerUser.username}`);
 
     // Buscar todos os produtos do usuário
+    console.log(`Buscando produtos do usuário...`);
     const products = await prisma.product.findMany({
       where: {
         isActive: true,
@@ -381,19 +397,36 @@ router.post('/zero-all-stock', authMiddleware, async (req: AuthRequest, res: Res
 
     console.log(`Encontrados ${products.length} produtos para zerar estoque`);
 
+    if (products.length === 0) {
+      console.log(`Nenhum produto encontrado para o usuário`);
+      return res.json({
+        success: true,
+        message: 'Nenhum produto encontrado para zerar',
+        processed: 0,
+        zeroed: 0,
+      });
+    }
+
     let processedCount = 0;
     let zeroedCount = 0;
+    let errorCount = 0;
 
     // Processar cada produto
     for (const product of products) {
       try {
+        console.log(`Processando produto: ${product.name} (${product.sku})`);
+        
         // Calcular estoque atual
         const currentStock = product.movements.reduce((sum, m) => {
           return m.type === 'ENTRY' ? sum + m.quantity : sum - m.quantity;
         }, 0);
 
+        console.log(`Estoque atual do produto ${product.name}: ${currentStock}`);
+
         // Se tem estoque, criar movimento para zerar
         if (currentStock !== 0) {
+          console.log(`Criando movimento para zerar produto ${product.name}`);
+          
           await prisma.movement.create({
             data: {
               type: currentStock > 0 ? 'EXIT' : 'ENTRY',
@@ -407,25 +440,29 @@ router.post('/zero-all-stock', authMiddleware, async (req: AuthRequest, res: Res
 
           console.log(`Produto ${product.name}: ${currentStock} → 0`);
           zeroedCount++;
+        } else {
+          console.log(`Produto ${product.name} já está com estoque zero`);
         }
 
         processedCount++;
       } catch (productError) {
         console.error(`Erro ao zerar produto ${product.name}:`, productError);
+        errorCount++;
       }
     }
 
-    console.log(`Processo concluído: ${processedCount} produtos processados, ${zeroedCount} estoques zerados`);
+    console.log(`Processo concluído: ${processedCount} produtos processados, ${zeroedCount} estoques zerados, ${errorCount} erros`);
 
     res.json({
       success: true,
       message: `${zeroedCount} produtos tiveram o estoque zerado`,
       processed: processedCount,
       zeroed: zeroedCount,
+      errors: errorCount,
     });
   } catch (error) {
-    console.error('Erro ao zerar todo estoque:', error);
-    res.status(500).json({ error: 'Erro ao zerar estoque' });
+    console.error('Erro geral ao zerar todo estoque:', error);
+    res.status(500).json({ error: 'Erro ao zerar estoque: ' + (error as Error).message });
   }
 });
 
