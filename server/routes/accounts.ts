@@ -130,6 +130,10 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
       return res.json({ success: false, error: 'Conta não conectada. Clique em "Conectar Bling" primeiro.' });
     }
 
+    // Verificar se é a primeira sincronização desta conta
+    const isFirstSync = !account.lastSync;
+    console.log(`Sincronização da conta ${account.name}: ${isFirstSync ? 'PRIMEIRA' : 'SUBSEQUENTE'}`);
+
     // Check if token expired and refresh if needed
     let accessToken = account.accessToken;
     if (account.tokenExpiresAt && new Date(account.tokenExpiresAt) < new Date()) {
@@ -221,6 +225,44 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
           });
 
           if (!existingMapping) {
+            // Nova conexão Bling para produto existente
+            console.log(`Produto ${existing.name} já existe - criando mapping para conta ${account.name}`);
+            
+            // APENAS na primeira sincronização desta conta, zerar estoque de produtos existentes
+            if (isFirstSync) {
+              console.log(`PRIMEIRA SYNC: Zerando estoque do produto ${existing.name}`);
+              
+              // Calcular estoque atual
+              const movements = await prisma.movement.findMany({
+                where: { 
+                  productId: existing.id,
+                  userId: userId 
+                },
+              });
+
+              const currentStock = movements.reduce((sum, m) => {
+                return m.type === 'ENTRY' ? sum + m.quantity : sum - m.quantity;
+              }, 0);
+
+              // Se tem estoque, criar movimento para zerar
+              if (currentStock !== 0) {
+                await prisma.movement.create({
+                  data: {
+                    type: currentStock > 0 ? 'EXIT' : 'ENTRY',
+                    productId: existing.id,
+                    quantity: Math.abs(currentStock),
+                    reason: `Zerado na primeira sincronização da conta ${account.name}`,
+                    userId: userId,
+                    syncStatus: 'completed',
+                  },
+                });
+                console.log(`Estoque zerado: ${currentStock} → 0`);
+              }
+            } else {
+              console.log(`SYNC SUBSEQUENTE: Mantendo estoque atual do produto ${existing.name}`);
+            }
+
+            // Criar mapping
             await prisma.productMapping.create({
               data: {
                 productId: existing.id,
