@@ -62,7 +62,7 @@ app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando em http://localhost:${PORT}`);
   console.log(`📊 API disponível em http://localhost:${PORT}/api`);
   
-  // Temporariamente desabilitado para debug
-  // startAutoSync();
-  console.log('⚠️ Auto-sync temporariamente desabilitado para debug');
+  // Reativar sincronização automática
+  startAutoSync();
+  console.log('⏰ Auto-sync reativado - sincronização a cada 30 minutos');
 });

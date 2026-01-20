@@ -580,37 +580,46 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
     
     for (const order of allOrders) {
       try {
-        // O status pode vir de diferentes formas na API v3
+        // SOLUÇÃO DEFINITIVA: Capturar status exato da API do Bling
         const statusId = order.situacao?.id;
-        const statusTexto = order.situacao?.valor || order.situacao?.nome || order.situacao?.descricao || '';
+        const statusTexto = order.situacao?.valor || order.situacao?.nome || order.situacao?.descricao || order.situacao?.texto || '';
         
         // LOG DETALHADO para debug
-        console.log(`📋 Pedido #${order.numero}: statusId=${statusId}, statusTexto="${statusTexto}"`);
-        console.log(`📋 Situação completa:`, JSON.stringify(order.situacao, null, 2));
+        console.log(`📋 Pedido #${order.numero}:`);
+        console.log(`   - statusId: ${statusId}`);
+        console.log(`   - statusTexto: "${statusTexto}"`);
+        console.log(`   - situacao completa:`, JSON.stringify(order.situacao, null, 2));
         
-        // NOVA LÓGICA: Priorizar o texto do status (que vem direto da tela do Bling)
+        // NOVA ABORDAGEM: Usar EXATAMENTE o que vem da API
         let status: string;
         
-        // 1. PRIMEIRO: Usar o texto exato que vem da API (mais confiável)
+        // 1. Se tem texto, usar o texto EXATO (mais confiável)
         if (statusTexto && typeof statusTexto === 'string' && statusTexto.trim().length > 0) {
           status = statusTexto.trim();
-          console.log(`✅ Status mapeado pelo texto: "${status}"`);
+          console.log(`✅ Status capturado pelo TEXTO: "${status}"`);
         }
-        // 2. FALLBACK: Tentar pelo ID se não tem texto
+        // 2. Se não tem texto mas tem ID, tentar mapear
         else if (statusId !== undefined && statusMap[statusId]) {
           status = statusMap[statusId];
           console.log(`✅ Status mapeado pelo ID ${statusId}: "${status}"`);
         }
-        // 3. FALLBACK: Se tem ID mas não está no mapeamento
+        // 3. Se tem ID mas não está mapeado, usar ID como texto
         else if (statusId !== undefined) {
           status = `Status ${statusId}`;
           console.log(`⚠️ Status não mapeado, usando ID: "${status}"`);
         }
-        // 4. ÚLTIMO RECURSO
+        // 4. Último recurso
         else {
           status = 'Aguardando Processamento';
           console.log(`❌ Nenhum status encontrado, usando padrão: "${status}"`);
         }
+        
+        // LOG FINAL
+        console.log(`🎯 STATUS FINAL DEFINIDO: "${status}"`);
+        
+        // Verificar se é um status que deve dar baixa automática
+        const statusParaBaixa = ['Verificado', 'verificado', 'VERIFICADO'];
+        const needsProcessing = statusParaBaixa.some(s => s.toLowerCase() === status.toLowerCase());
         
         // Processar data corretamente para evitar problemas de timezone
         let blingCreatedAt: Date | null = null;
@@ -631,7 +640,7 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
           totalAmount: order.total || 0,
           items: JSON.stringify(order.itens || []),
           blingCreatedAt,
-          needsProcessing: statusParaBaixa.includes(status)
+          needsProcessing
         });
       } catch (orderError: any) {
         console.error(`❌ Erro ao preparar pedido ${order.numero}:`, orderError.message);
@@ -699,8 +708,8 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
             processedCount++;
 
             // 🚀 BAIXA AUTOMÁTICA NO ESTOQUE (APENAS para status "Verificado" e pedidos não processados)
-            if (orderData.status === 'Verificado' && !savedOrder.isProcessed) {
-              console.log(`🔥 BAIXA AUTOMÁTICA ATIVADA para pedido #${orderData.orderNumber} - Status: ${orderData.status}`);
+            if (orderData.needsProcessing && !savedOrder.isProcessed) {
+              console.log(`🔥 BAIXA AUTOMÁTICA ATIVADA para pedido #${orderData.orderNumber} - Status: "${orderData.status}"`);
               
               const items = JSON.parse(orderData.items);
               let produtosProcessados = 0;
@@ -720,7 +729,7 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
                 });
 
                 if (product) {
-                  console.log(`📦 DANDO BAIXA: ${quantidade}x ${product.name} (SKU: ${sku})`);
+                  console.log(`📦 DANDO BAIXA AUTOMÁTICA: ${quantidade}x ${product.name} (SKU: ${sku})`);
                   
                   // Criar movimento de saída
                   await tx.movement.create({
@@ -751,7 +760,7 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
 
               autoProcessedCount++;
               console.log(`✅ BAIXA AUTOMÁTICA CONCLUÍDA: ${produtosProcessados} produtos processados para pedido #${orderData.orderNumber}`);
-            } else if (orderData.status === 'Verificado' && savedOrder.isProcessed) {
+            } else if (orderData.needsProcessing && savedOrder.isProcessed) {
               console.log(`ℹ️ Pedido #${orderData.orderNumber} já foi processado anteriormente`);
             } else {
               console.log(`ℹ️ Pedido #${orderData.orderNumber} com status "${orderData.status}" - não requer baixa automática`);
