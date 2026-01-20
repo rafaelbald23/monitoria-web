@@ -530,6 +530,139 @@ router.post('/force-update-status', authMiddleware, async (req: AuthRequest, res
   }
 });
 
+// CORRESPONDÊNCIA DE PRODUTOS: Buscar produtos no estoque que correspondem aos itens do Bling
+router.post('/match-products', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { items } = req.body;
+    const userId = req.user!.userId;
+
+    if (!items || !Array.isArray(items)) {
+      return res.json({ success: false, error: 'Itens não fornecidos' });
+    }
+
+    console.log(`🔍 BUSCANDO CORRESPONDÊNCIAS para ${items.length} itens`);
+
+    const matches: Record<string, any> = {};
+
+    // Buscar todos os produtos do usuário
+    const products = await prisma.product.findMany({
+      where: { 
+        // Buscar produtos do usuário ou do owner se for funcionário
+        OR: [
+          { movements: { some: { userId } } },
+          { movements: { some: { user: { ownerId: userId } } } },
+          { movements: { some: { user: { id: userId } } } }
+        ]
+      },
+      include: {
+        movements: {
+          where: { type: 'ENTRY' },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+    });
+
+    // Calcular estoque atual para cada produto
+    const productsWithStock = await Promise.all(
+      products.map(async (product) => {
+        const movements = await prisma.movement.findMany({
+          where: { productId: product.id },
+          orderBy: { createdAt: 'asc' },
+        });
+
+        let currentStock = 0;
+        movements.forEach(movement => {
+          if (movement.type === 'ENTRY') {
+            currentStock += movement.quantity;
+          } else if (movement.type === 'EXIT') {
+            currentStock -= movement.quantity;
+          }
+        });
+
+        return {
+          ...product,
+          currentStock,
+        };
+      })
+    );
+
+    // Para cada item do Bling, tentar encontrar correspondência
+    for (const item of items) {
+      const sku = item.codigo || item.produto?.codigo;
+      const nome = item.nome || item.produto?.nome;
+      const ean = item.ean || item.produto?.ean;
+
+      console.log(`🔍 Buscando: SKU="${sku}", Nome="${nome}", EAN="${ean}"`);
+
+      let match = null;
+
+      // 1. Buscar por SKU exato
+      if (sku) {
+        match = productsWithStock.find(p => 
+          p.sku === sku || 
+          p.internalCode === sku
+        );
+        if (match) {
+          console.log(`✅ Encontrado por SKU: ${match.name}`);
+          matches[sku] = match;
+          continue;
+        }
+      }
+
+      // 2. Buscar por EAN exato
+      if (ean) {
+        match = productsWithStock.find(p => p.ean === ean);
+        if (match) {
+          console.log(`✅ Encontrado por EAN: ${match.name}`);
+          matches[ean] = match;
+          continue;
+        }
+      }
+
+      // 3. Buscar por nome (similaridade)
+      if (nome) {
+        const nomeNormalizado = nome.toLowerCase().trim();
+        
+        // Busca exata por nome
+        match = productsWithStock.find(p => 
+          p.name.toLowerCase().trim() === nomeNormalizado
+        );
+        
+        if (!match) {
+          // Busca por similaridade (contém)
+          match = productsWithStock.find(p => {
+            const productName = p.name.toLowerCase().trim();
+            return productName.includes(nomeNormalizado) || 
+                   nomeNormalizado.includes(productName);
+          });
+        }
+
+        if (match) {
+          console.log(`✅ Encontrado por nome: ${match.name}`);
+          matches[nome] = match;
+          continue;
+        }
+      }
+
+      console.log(`❌ Não encontrado: SKU="${sku}", Nome="${nome}", EAN="${ean}"`);
+    }
+
+    console.log(`🎯 Total de correspondências encontradas: ${Object.keys(matches).length}`);
+
+    res.json({
+      success: true,
+      matches,
+      totalItems: items.length,
+      matchedItems: Object.keys(matches).length,
+    });
+
+  } catch (error: any) {
+    console.error('❌ Erro ao buscar correspondências:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // CORREÇÃO MANUAL: Forçar status baseado na interface do Bling
 router.post('/force-status-correction/:accountId/:orderNumber', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
@@ -1387,22 +1520,82 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
               const items = JSON.parse(orderData.items);
               let produtosProcessados = 0;
 
+              // 🚀 BAIXA AUTOMÁTICA NO ESTOQUE com correspondência melhorada
+            if (orderData.needsProcessing && !savedOrder.isProcessed) {
+              console.log(`🔥 BAIXA AUTOMÁTICA ATIVADA para pedido #${orderData.orderNumber} - Status: "${orderData.status}"`);
+              
+              const items = JSON.parse(orderData.items);
+              let produtosProcessados = 0;
+
               for (const item of items) {
                 const sku = item.codigo || item.produto?.codigo;
+                const nome = item.nome || item.produto?.nome;
+                const ean = item.ean || item.produto?.ean;
                 const quantidade = item.quantidade || 1;
                 
-                if (!sku) {
-                  console.log(`⚠️ Item sem SKU no pedido #${orderData.orderNumber}:`, item);
-                  continue;
+                console.log(`📦 Processando item: SKU="${sku}", Nome="${nome}", EAN="${ean}", Qtd=${quantidade}`);
+
+                let product = null;
+
+                // 1. Buscar por SKU exato
+                if (sku) {
+                  product = await tx.product.findFirst({
+                    where: {
+                      OR: [
+                        { sku: sku },
+                        { internalCode: sku }
+                      ]
+                    }
+                  });
+                  if (product) {
+                    console.log(`✅ Produto encontrado por SKU: ${product.name}`);
+                  }
                 }
 
-                // Buscar produto pelo SKU
-                const product = await tx.product.findUnique({
-                  where: { sku },
-                });
+                // 2. Buscar por EAN se não encontrou por SKU
+                if (!product && ean) {
+                  product = await tx.product.findFirst({
+                    where: { ean: ean }
+                  });
+                  if (product) {
+                    console.log(`✅ Produto encontrado por EAN: ${product.name}`);
+                  }
+                }
+
+                // 3. Buscar por nome se não encontrou por SKU/EAN
+                if (!product && nome) {
+                  const nomeNormalizado = nome.toLowerCase().trim();
+                  
+                  // Busca exata por nome
+                  product = await tx.product.findFirst({
+                    where: {
+                      name: {
+                        equals: nome,
+                        mode: 'insensitive'
+                      }
+                    }
+                  });
+
+                  // Se não encontrou, busca por similaridade
+                  if (!product) {
+                    const allProducts = await tx.product.findMany({
+                      select: { id: true, name: true, sku: true }
+                    });
+                    
+                    product = allProducts.find(p => {
+                      const productName = p.name.toLowerCase().trim();
+                      return productName.includes(nomeNormalizado) || 
+                             nomeNormalizado.includes(productName);
+                    });
+                  }
+
+                  if (product) {
+                    console.log(`✅ Produto encontrado por nome: ${product.name}`);
+                  }
+                }
 
                 if (product) {
-                  console.log(`📦 DANDO BAIXA AUTOMÁTICA: ${quantidade}x ${product.name} (SKU: ${sku})`);
+                  console.log(`📦 DANDO BAIXA AUTOMÁTICA: ${quantidade}x ${product.name} (SKU: ${product.sku})`);
                   
                   // Criar movimento de saída
                   await tx.movement.create({
@@ -1418,7 +1611,7 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
                   
                   produtosProcessados++;
                 } else {
-                  console.log(`⚠️ Produto não encontrado no estoque - SKU: ${sku}`);
+                  console.log(`⚠️ Produto não encontrado no estoque - SKU: "${sku}", Nome: "${nome}", EAN: "${ean}"`);
                 }
               }
 

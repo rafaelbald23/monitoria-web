@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
+import OrderDetailsModal from '../components/OrderDetailsModal';
 import { useTheme } from '../hooks/useTheme';
 import api from '../lib/api';
 import { RefreshIcon, FilterIcon, PlusIcon, DollarIcon, ShoppingCartIcon, AlertIcon } from '../components/Icons';
@@ -36,6 +37,8 @@ export default function Sales() {
   const [filter, setFilter] = useState('all');
   const [stats, setStats] = useState({ totalOrders: 0, totalRevenue: 0, verified: 0, processed: 0 });
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<BlingOrder | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const showMessage = (type: 'success' | 'error' | 'info', text: string) => {
     setMessage({ type, text });
@@ -92,6 +95,40 @@ export default function Sales() {
       console.error('Erro ao carregar pedidos:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleOrderClick = (order: BlingOrder) => {
+    setSelectedOrder(order);
+    setIsModalOpen(true);
+  };
+
+  const handleProcessOrder = async (orderId: string) => {
+    try {
+      const response = await fetch(`/api/bling/orders/${orderId}/process`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('accessToken') || localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        showMessage('success', result.message);
+        setIsModalOpen(false);
+        await loadBlingOrders();
+      } else {
+        showMessage('error', `Erro ao processar: ${result.error}`);
+      }
+    } catch (error: any) {
+      console.error('Erro ao processar pedido:', error);
+      showMessage('error', `Erro ao processar: ${error.message}`);
     }
   };
 
@@ -388,12 +425,40 @@ Deve processar estoque: ${inv.comparison.shouldProcessStock ? 'SIM' : 'NÃO'}`;
     { key: 'customerName', label: 'Cliente' },
     { key: 'totalAmount', label: 'Valor' },
     { key: 'status', label: 'Status' },
+    { key: 'itemsCount', label: 'Qtd Itens' },
+    { key: 'itemsDetails', label: 'Produtos' },
   ];
 
-  const handleExportCSV = () => exportToCSV(filteredOrders, 'pedidos-bling', columns);
+  const handleExportCSV = () => {
+    // Preparar dados com detalhes dos produtos
+    const dataWithDetails = filteredOrders.map(order => ({
+      ...order,
+      itemsCount: order.items ? JSON.parse(order.items).length : 0,
+      itemsDetails: order.items ? 
+        JSON.parse(order.items).map((item: any) => {
+          const sku = item.codigo || item.produto?.codigo || '';
+          const nome = item.nome || item.produto?.nome || '';
+          const ean = item.ean || item.produto?.ean || '';
+          const qtd = item.quantidade || 1;
+          return `${nome} (SKU: ${sku}, EAN: ${ean}, Qtd: ${qtd})`;
+        }).join('; ') : ''
+    }));
+    exportToCSV(dataWithDetails, 'pedidos-bling-detalhado', columns);
+  };
+  
   const handleExportPDF = () => {
-    const tableHTML = generateTableHTML(filteredOrders, columns);
-    exportToPDF('Pedidos Bling - Últimos 3 Meses', tableHTML);
+    const dataWithDetails = filteredOrders.map(order => ({
+      ...order,
+      itemsCount: order.items ? JSON.parse(order.items).length : 0,
+      itemsDetails: order.items ? 
+        JSON.parse(order.items).map((item: any) => {
+          const nome = item.nome || item.produto?.nome || '';
+          const qtd = item.quantidade || 1;
+          return `${nome} (${qtd}x)`;
+        }).join(', ') : ''
+    }));
+    const tableHTML = generateTableHTML(dataWithDetails, columns);
+    exportToPDF('Pedidos Bling - Detalhado com Produtos', tableHTML);
   };
 
   return (
@@ -532,16 +597,33 @@ Deve processar estoque: ${inv.comparison.shouldProcessStock ? 'SIM' : 'NÃO'}`;
                 </thead>
                 <tbody className={"divide-y " + (isDarkMode ? 'divide-white/10' : 'divide-gray-200')}>
                   {filteredOrders.map((order) => (
-                    <tr key={order.id} className={"transition-colors " + (isDarkMode ? 'hover:bg-white/5' : 'hover:bg-gray-50')}>
-                      <td className={"px-6 py-4 whitespace-nowrap text-sm font-medium " + (isDarkMode ? 'text-white' : 'text-gray-900')}>#{order.orderNumber}</td>
-                      <td className={"px-6 py-4 whitespace-nowrap text-sm " + (isDarkMode ? 'text-gray-300' : 'text-gray-700')}>
+                    <tr 
+                      key={order.id} 
+                      className={`transition-colors cursor-pointer ${isDarkMode ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}
+                      onClick={() => handleOrderClick(order)}
+                    >
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        <div className="flex items-center gap-2">
+                          <span>#{order.orderNumber}</span>
+                          {order.items && JSON.parse(order.items).length > 0 && (
+                            <span className={`px-2 py-1 rounded text-xs ${isDarkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-700'}`}>
+                              {JSON.parse(order.items).length} item(s)
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                         {order.blingCreatedAt 
                           ? new Date(order.blingCreatedAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
                           : new Date(order.createdAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
                         }
                       </td>
-                      <td className={"px-6 py-4 whitespace-nowrap text-sm " + (isDarkMode ? 'text-gray-300' : 'text-gray-700')}>{order.customerName || '-'}</td>
-                      <td className={"px-6 py-4 whitespace-nowrap text-sm font-semibold " + (isDarkMode ? 'text-green-400' : 'text-green-600')}>{(order.totalAmount || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {order.customerName || '-'}
+                      </td>
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm font-semibold ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>
+                        {(order.totalAmount || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={"px-3 py-1 rounded-full text-xs font-medium border " + getStatusColor(order.status)}>{order.status}</span>
                       </td>
@@ -549,14 +631,12 @@ Deve processar estoque: ${inv.comparison.shouldProcessStock ? 'SIM' : 'NÃO'}`;
                         {order.isProcessed ? (
                           <span className={"px-2 py-1 rounded text-xs " + (isDarkMode ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-700')}>✓ Processado</span>
                         ) : (order.status === 'Verificado' || order.status === 'Checado') ? (
-                          <button onClick={() => navigate('/new-sale')} className={"px-2 py-1 rounded text-xs font-medium " + (isDarkMode ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' : 'bg-purple-100 text-purple-700 hover:bg-purple-200')}>
-                            Dar Baixa
-                          </button>
+                          <span className={"px-2 py-1 rounded text-xs " + (isDarkMode ? 'bg-yellow-500/20 text-yellow-400' : 'bg-yellow-100 text-yellow-700')}>Pendente</span>
                         ) : (
                           <span className={"text-xs " + (isDarkMode ? 'text-gray-500' : 'text-gray-400')}>-</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <div className="flex gap-1">
                           <button 
                             onClick={() => handleCorrectStatus(order.orderNumber)} 
@@ -596,6 +676,14 @@ Deve processar estoque: ${inv.comparison.shouldProcessStock ? 'SIM' : 'NÃO'}`;
           </div>
         )}
       </div>
+
+      {/* Modal de Detalhes do Pedido */}
+      <OrderDetailsModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        order={selectedOrder}
+        onProcessOrder={handleProcessOrder}
+      />
     </Layout>
   );
 }
