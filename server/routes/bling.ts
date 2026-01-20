@@ -434,6 +434,10 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
         const statusId = order.situacao?.id;
         const statusTexto = order.situacao?.valor || order.situacao?.nome || order.situacao?.descricao || '';
         
+        // LOG DETALHADO para debug
+        console.log(`📋 Pedido #${order.numero}: statusId=${statusId}, statusTexto="${statusTexto}"`);
+        console.log(`📋 Situação completa:`, JSON.stringify(order.situacao, null, 2));
+        
         // Lógica melhorada para mapear status - NUNCA retorna "Sem Status"
         let status: string;
         
@@ -510,11 +514,13 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
                 },
               },
               update: {
-                status: orderData.status,
+                status: orderData.status, // SEMPRE atualizar o status
                 customerName: orderData.customerName,
                 totalAmount: orderData.totalAmount,
                 items: orderData.items,
                 updatedAt: new Date(),
+                // Se o status mudou para "Verificado" e ainda não foi processado, resetar isProcessed
+                isProcessed: orderData.status === 'Verificado' ? false : undefined,
               },
               create: {
                 blingOrderId: orderData.blingOrderId,
@@ -526,6 +532,7 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
                 totalAmount: orderData.totalAmount,
                 items: orderData.items,
                 blingCreatedAt: orderData.blingCreatedAt,
+                isProcessed: false,
               },
             });
 
