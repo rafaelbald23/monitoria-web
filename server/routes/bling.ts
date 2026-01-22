@@ -1754,14 +1754,23 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
     console.log(`📊 Retornando ${savedOrders.length} pedidos para o frontend`);
 
     // 🔄 ATUALIZAÇÃO AUTOMÁTICA: Buscar items para pedidos que estão vazios
-    console.log('🔍 Verificando pedidos com items vazios...');
-    let updatedCount = 0;
-    
-    for (const order of savedOrders) {
+    // Só atualiza pedidos que realmente precisam (items vazios)
+    const ordersNeedingUpdate = savedOrders.filter(o => {
       try {
-        const items = JSON.parse(order.items);
-        if (items.length === 0) {
-          console.log(`📦 Pedido #${order.orderNumber} sem items, buscando detalhes...`);
+        const items = JSON.parse(o.items);
+        return items.length === 0;
+      } catch {
+        return false;
+      }
+    });
+    
+    if (ordersNeedingUpdate.length > 0) {
+      console.log(`🔍 Encontrados ${ordersNeedingUpdate.length} pedidos sem items, buscando detalhes...`);
+      let updatedCount = 0;
+      
+      for (const order of ordersNeedingUpdate) {
+        try {
+          console.log(`📦 Buscando items para pedido #${order.orderNumber}...`);
           
           // Buscar detalhes completos do Bling
           const orderDetails = await fetchOrderDetails(order.blingOrderId, accessToken);
@@ -1781,18 +1790,22 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
             // Atualizar no array de retorno
             order.items = JSON.stringify(orderDetails.itens);
             updatedCount++;
+          } else {
+            console.log(`⚠️ Nenhum item encontrado para pedido #${order.orderNumber}`);
           }
           
-          // Delay para respeitar rate limit
-          await new Promise(resolve => setTimeout(resolve, 500));
+          // Delay para respeitar rate limit (3 req/segundo = 333ms)
+          await new Promise(resolve => setTimeout(resolve, 400));
+        } catch (itemError: any) {
+          console.error(`❌ Erro ao atualizar items do pedido #${order.orderNumber}:`, itemError.message);
         }
-      } catch (itemError: any) {
-        console.error(`❌ Erro ao atualizar items do pedido #${order.orderNumber}:`, itemError.message);
       }
-    }
-    
-    if (updatedCount > 0) {
-      console.log(`✅ ${updatedCount} pedidos atualizados com items completos`);
+      
+      if (updatedCount > 0) {
+        console.log(`✅ ${updatedCount} de ${ordersNeedingUpdate.length} pedidos atualizados com items completos`);
+      }
+    } else {
+      console.log(`✅ Todos os pedidos já possuem items`);
     }
 
     res.json({

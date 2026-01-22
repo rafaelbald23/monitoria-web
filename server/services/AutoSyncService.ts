@@ -37,6 +37,29 @@ async function refreshAccessToken(account: any): Promise<string> {
   return tokens.access_token;
 }
 
+// Função para buscar detalhes completos de um pedido
+async function fetchOrderDetails(orderId: string, accessToken: string): Promise<any> {
+  try {
+    console.log(`🔍 [AUTO-SYNC] Buscando detalhes completos do pedido #${orderId}...`);
+    const response = await axios.get(`${BLING_API_URL}/pedidos/vendas/${orderId}`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+      timeout: 15000,
+    });
+    
+    if (response.data?.data) {
+      console.log(`✅ [AUTO-SYNC] Detalhes completos obtidos com ${(response.data.data.itens || []).length} itens`);
+      return response.data.data;
+    }
+  } catch (error: any) {
+    console.log(`⚠️ [AUTO-SYNC] Erro ao buscar detalhes: ${error.message}`);
+  }
+  
+  return null;
+}
+
 // Sincronizar pedidos de uma conta específica
 async function syncAccountOrders(account: any): Promise<{ success: boolean; processed: number; error?: string }> {
   try {
@@ -116,30 +139,36 @@ async function syncAccountOrders(account: any): Promise<{ success: boolean; proc
     await prisma.$transaction(async (tx) => {
       for (const order of allOrders) {
         try {
+          // 🔍 BUSCAR DETALHES COMPLETOS DO PEDIDO para garantir que temos todos os items
+          const orderDetails = await fetchOrderDetails(order.id, accessToken);
+          const orderToUse = orderDetails || order;
+          
+          console.log(`📦 [AUTO-SYNC] Pedido #${orderToUse.numero} - Items: ${(orderToUse.itens || []).length}`);
+          
           // MAPEAMENTO DE STATUS MELHORADO - Igual ao bling.ts
-          const statusId = order.situacao?.id;
+          const statusId = orderToUse.situacao?.id;
           
           // LOG COMPLETO da estrutura para debug
-          console.log(`📋 [AUTO-SYNC] ANÁLISE Pedido #${order.numero}:`);
-          console.log(`   - situacao:`, JSON.stringify(order.situacao, null, 2));
+          console.log(`📋 [AUTO-SYNC] ANÁLISE Pedido #${orderToUse.numero}:`);
+          console.log(`   - situacao:`, JSON.stringify(orderToUse.situacao, null, 2));
           
           // NOVA ESTRATÉGIA: Testar TODOS os campos possíveis da situacao
           const possibleStatusFields = [
             // Campos mais comuns da API Bling v3
-            order.situacao?.nome,           // Campo principal na v3
-            order.situacao?.descricao,      // Campo alternativo
-            order.situacao?.valor,          // Campo de valor
-            order.situacao?.texto,          // Campo de texto
-            order.situacao?.status,         // Campo status direto
-            order.situacao?.situacao,       // Campo situacao aninhado
+            orderToUse.situacao?.nome,           // Campo principal na v3
+            orderToUse.situacao?.descricao,      // Campo alternativo
+            orderToUse.situacao?.valor,          // Campo de valor
+            orderToUse.situacao?.texto,          // Campo de texto
+            orderToUse.situacao?.status,         // Campo status direto
+            orderToUse.situacao?.situacao,       // Campo situacao aninhado
             // Campos do pedido principal
-            order.status,
-            order.situacao_nome,
-            order.situacao_descricao,
+            orderToUse.status,
+            orderToUse.situacao_nome,
+            orderToUse.situacao_descricao,
             // Campos aninhados se existirem
-            order.situacao?.situacao?.nome,
-            order.situacao?.situacao?.descricao,
-            order.situacao?.situacao?.valor,
+            orderToUse.situacao?.situacao?.nome,
+            orderToUse.situacao?.situacao?.descricao,
+            orderToUse.situacao?.situacao?.valor,
           ];
           
           let statusTexto = '';
@@ -173,12 +202,12 @@ async function syncAccountOrders(account: any): Promise<{ success: boolean; proc
           }
 
           // Processar data
-          let blingCreatedAt = null;
-          if (order.data) {
-            if (typeof order.data === 'string' && order.data.match(/^\d{4}-\d{2}-\d{2}$/)) {
-              blingCreatedAt = new Date(order.data + 'T12:00:00.000Z');
+          let blingCreatedAt: Date | null = null;
+          if (orderToUse.data) {
+            if (typeof orderToUse.data === 'string' && orderToUse.data.match(/^\d{4}-\d{2}-\d{2}$/)) {
+              blingCreatedAt = new Date(orderToUse.data + 'T12:00:00.000Z');
             } else {
-              blingCreatedAt = new Date(order.data);
+              blingCreatedAt = new Date(orderToUse.data);
             }
           }
 
@@ -186,7 +215,7 @@ async function syncAccountOrders(account: any): Promise<{ success: boolean; proc
           const existingOrder = await tx.blingOrder.findUnique({
             where: {
               blingOrderId_accountId: {
-                blingOrderId: String(order.id),
+                blingOrderId: String(orderToUse.id),
                 accountId: account.id,
               },
             },
@@ -195,26 +224,26 @@ async function syncAccountOrders(account: any): Promise<{ success: boolean; proc
           const savedOrder = await tx.blingOrder.upsert({
             where: {
               blingOrderId_accountId: {
-                blingOrderId: String(order.id),
+                blingOrderId: String(orderToUse.id),
                 accountId: account.id,
               },
             },
             update: {
               status,
-              customerName: order.contato?.nome || null,
-              totalAmount: order.total || 0,
-              items: JSON.stringify(order.itens || []),
+              customerName: orderToUse.contato?.nome || null,
+              totalAmount: orderToUse.total || 0,
+              items: JSON.stringify(orderToUse.itens || []),
               updatedAt: new Date(),
             },
             create: {
-              blingOrderId: String(order.id),
-              orderNumber: String(order.numero || order.id),
+              blingOrderId: String(orderToUse.id),
+              orderNumber: String(orderToUse.numero || orderToUse.id),
               accountId: account.id,
               userId: account.userId,
               status,
-              customerName: order.contato?.nome || null,
-              totalAmount: order.total || 0,
-              items: JSON.stringify(order.itens || []),
+              customerName: orderToUse.contato?.nome || null,
+              totalAmount: orderToUse.total || 0,
+              items: JSON.stringify(orderToUse.itens || []),
               blingCreatedAt,
             },
           });
@@ -230,9 +259,9 @@ async function syncAccountOrders(account: any): Promise<{ success: boolean; proc
           const needsProcessing = statusParaBaixa.includes(statusNormalized);
           
           if (needsProcessing && !savedOrder.isProcessed) {
-            console.log(`🔥 [AUTO-SYNC] Processando baixa automática para pedido #${order.numero} - Status: ${status}`);
+            console.log(`🔥 [AUTO-SYNC] Processando baixa automática para pedido #${orderToUse.numero} - Status: ${status}`);
             
-            const items = order.itens || [];
+            const items = orderToUse.itens || [];
             let produtosProcessados = 0;
 
             for (const item of items) {
@@ -255,7 +284,7 @@ async function syncAccountOrders(account: any): Promise<{ success: boolean; proc
                     type: 'EXIT',
                     productId: product.id,
                     quantity: quantidade,
-                    reason: `Baixa automática - Pedido Bling #${order.numero} (${status})`,
+                    reason: `Baixa automática - Pedido Bling #${orderToUse.numero} (${status})`,
                     userId: account.userId,
                     syncStatus: 'synced',
                   },
@@ -280,6 +309,9 @@ async function syncAccountOrders(account: any): Promise<{ success: boolean; proc
         } catch (orderError: any) {
           console.error(`❌ [AUTO-SYNC] Erro ao processar pedido ${order.numero}:`, orderError.message);
         }
+        
+        // Delay para respeitar rate limit (buscar detalhes é uma requisição extra)
+        await new Promise(resolve => setTimeout(resolve, 400));
       }
     });
 
