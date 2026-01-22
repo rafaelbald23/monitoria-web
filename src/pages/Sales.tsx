@@ -105,8 +105,11 @@ export default function Sales() {
     try {
       // Se items já é um array, usa direto. Se é string, faz parse
       parsedItems = typeof order.items === 'string' ? JSON.parse(order.items) : (order.items || []);
+      console.log('📦 SALES - Items parseados:', parsedItems);
+      console.log('📦 SALES - Items length:', parsedItems.length);
     } catch (e) {
       console.error('Erro ao fazer parse dos items:', e);
+      console.error('Items original:', order.items);
       parsedItems = [];
     }
     
@@ -115,6 +118,7 @@ export default function Sales() {
       items: parsedItems,
       processedAt: order.processedAt || null
     };
+    console.log('📦 SALES - OrderDetails final:', orderDetails);
     setSelectedOrder(orderDetails as any);
     setIsModalOpen(true);
   };

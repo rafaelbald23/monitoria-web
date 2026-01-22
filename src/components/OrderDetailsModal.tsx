@@ -42,6 +42,11 @@ export default function OrderDetailsModal({ isOpen, onClose, order, onProcessOrd
 
   useEffect(() => {
     if (order && isOpen) {
+      console.log('📦 MODAL - Pedido recebido:', order);
+      console.log('📦 MODAL - Items:', order.items);
+      console.log('📦 MODAL - Items length:', order.items?.length);
+      console.log('📦 MODAL - Items type:', typeof order.items);
+      
       // Buscar correspondências de produtos no estoque
       fetchProductMatches();
     }
