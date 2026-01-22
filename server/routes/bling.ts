@@ -1150,6 +1150,78 @@ router.get('/debug-order/:accountId/:orderNumber', authMiddleware, async (req: A
   }
 });
 
+// Re-sincronizar pedido específico para buscar items completos
+router.post('/resync-order/:accountId/:orderNumber', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { accountId, orderNumber } = req.params;
+    const userId = req.user!.userId;
+
+    const account = await prisma.blingAccount.findFirst({
+      where: { id: accountId, userId },
+    });
+
+    if (!account || !account.accessToken) {
+      return res.json({ success: false, error: 'Conta não conectada' });
+    }
+
+    let accessToken = account.accessToken;
+    if (account.tokenExpiresAt && new Date(account.tokenExpiresAt) < new Date()) {
+      try {
+        accessToken = await refreshAccessToken(account);
+      } catch (refreshError: any) {
+        return res.json({ success: false, error: 'Token expirado. Reconecte a conta Bling.' });
+      }
+    }
+
+    const BLING_API_URL = 'https://www.bling.com.br/Api/v3';
+
+    // Buscar pedido na lista
+    const response = await axios.get(`${BLING_API_URL}/pedidos/vendas?limite=100&pagina=1`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+      timeout: 15000,
+    });
+
+    const orders = response.data?.data || [];
+    const targetOrder = orders.find((o: any) => String(o.numero) === orderNumber || String(o.id) === orderNumber);
+
+    if (!targetOrder) {
+      return res.json({ success: false, error: 'Pedido não encontrado' });
+    }
+
+    // Buscar detalhes completos
+    const orderDetails = await fetchOrderDetails(targetOrder.id, accessToken);
+    const orderToUse = orderDetails || targetOrder;
+
+    console.log(`🔄 RE-SYNC Pedido #${orderToUse.numero} - Items: ${(orderToUse.itens || []).length}`);
+
+    // Atualizar no banco
+    await prisma.blingOrder.update({
+      where: {
+        blingOrderId_accountId: {
+          blingOrderId: String(orderToUse.id),
+          accountId: accountId,
+        },
+      },
+      data: {
+        items: JSON.stringify(orderToUse.itens || []),
+        updatedAt: new Date(),
+      },
+    });
+
+    return res.json({ 
+      success: true, 
+      message: `Pedido #${orderNumber} re-sincronizado com ${(orderToUse.itens || []).length} items`,
+      itemsCount: (orderToUse.itens || []).length
+    });
+  } catch (error: any) {
+    console.error('Erro ao re-sincronizar pedido:', error);
+    return res.json({ success: false, error: error.message });
+  }
+});
+
 // Função para refresh do token
 async function refreshAccessToken(account: any): Promise<string> {
   const credentials = Buffer.from(`${account.clientId}:${account.clientSecret}`).toString('base64');

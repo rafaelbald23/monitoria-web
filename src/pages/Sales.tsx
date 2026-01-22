@@ -20,6 +20,8 @@ interface BlingOrder {
   createdAt: string;
   blingCreatedAt: string | null;
   processedAt?: string | null; // Add this field to match OrderDetails
+  accountId?: string; // Add accountId
+  accountName?: string; // Add accountName
 }
 
 interface Account {
@@ -73,7 +75,7 @@ export default function Sales() {
       for (const account of accounts) {
         const result = await api.getAllBlingOrders(account.id) as any;
         if (result.success && result.orders) {
-          allOrders = [...allOrders, ...result.orders.map((o: any) => ({ ...o, accountName: account.name }))];
+          allOrders = [...allOrders, ...result.orders.map((o: any) => ({ ...o, accountName: account.name, accountId: account.id }))];
         }
       }
       
