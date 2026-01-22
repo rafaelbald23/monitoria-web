@@ -325,6 +325,8 @@ model BlingOrder {
   items           String   // JSON com os itens do pedido
   processedAt     DateTime? // Quando foi processado no sistema
   isProcessed     Boolean  @default(false) // Se já deu baixa no estoque
+  isCancelled     Boolean  @default(false) // Se já foi cancelado e devolvido ao estoque
+  cancelledAt     DateTime? // Quando foi cancelado
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   blingCreatedAt  DateTime? // Data de criação no Bling

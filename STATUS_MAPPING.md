@@ -1,52 +1,95 @@
-# Mapeamento de Status do Bling
+# Mapeamento Completo de Status do Bling
+
+## Objetivo
+Mapear TODOS os status do Bling para:
+1. Exibir o nome correto (igual ao Bling)
+2. Aplicar a cor correta
+3. Executar ações automáticas quando necessário
 
 ## Status Confirmados
-| ID | Nome no Bling | Nome no Sistema | Cor | Ação |
-|----|---------------|-----------------|-----|------|
-| 24 | Verificado | Verificado | Verde | Baixa Automática |
-| 5  | Verificado | Verificado | Verde | Baixa Automática |
-| 10 | Checado | Checado | Verde | Baixa Automática |
 
-## Status a Confirmar
-Precisamos confirmar os IDs corretos para cada status que aparece na interface do Bling.
+### ✅ Status com Baixa Automática (Verde)
+| ID | Nome no Bling | Ação |
+|----|---------------|------|
+| 5  | Verificado | Baixa no estoque |
+| 10 | Checado | Baixa no estoque |
+| 24 | Verificado | Baixa no estoque |
 
-### Como descobrir o ID de um status:
-1. Abra um pedido no sistema
-2. Veja o console do navegador (F12)
-3. Procure por "situacao completa" nos logs
-4. Anote o ID e o nome
+### ❌ Status de Cancelamento (Vermelho)
+| ID | Nome no Bling | Ação |
+|----|---------------|------|
+| 2  | Cancelado | Reverter baixa (devolver ao estoque) |
 
-### Status Comuns do Bling:
-- Em Aberto
-- Em Digitação
-- Verificado ✅
-- Checado ✅
-- Aprovado
-- Atendido
-- Faturado
-- Pronto para Envio
-- Impresso
-- Separado
-- Embalado
-- Enviado
-- Coletado
-- Em Trânsito
-- Entregue
-- Cancelado
-- Devolvido
-- Não Entregue
-- Extraviado
-- Bloqueado
-- Suspenso
-- Reagendado
-- Tentativa de Entrega
-- Aguardando
-- Pendente
-- Processando
-- Reprovado
-- Estornado
-- Venda Agenciada
+### 📋 Status Iniciais (Laranja)
+| ID | Nome no Bling | Ação |
+|----|---------------|------|
+| 0  | Em Aberto | Nenhuma |
+| 9  | Em Digitação | Nenhuma |
 
-## Ações por Status
-- **Baixa Automática**: Verificado, Checado, Aprovado
-- **Sem Ação**: Todos os outros
+### 🔵 Status de Processamento (Azul)
+| ID | Nome no Bling | Ação |
+|----|---------------|------|
+| 1  | Atendido | Nenhuma |
+| 14 | Faturado | Nenhuma |
+| 27 | Processando | Nenhuma |
+
+### 🟣 Status de Preparação (Roxo)
+| ID | Nome no Bling | Ação |
+|----|---------------|------|
+| 12 | Pronto para Envio | Nenhuma |
+| 15 | Pronto | Nenhuma |
+| 16 | Impresso | Nenhuma |
+| 17 | Separado | Nenhuma |
+| 18 | Embalado | Nenhuma |
+
+### 🔷 Status de Envio (Ciano)
+| ID | Nome no Bling | Ação |
+|----|---------------|------|
+| 11 | Enviado | Nenhuma |
+| 19 | Coletado | Nenhuma |
+| 20 | Em Trânsito | Nenhuma |
+
+### 🟢 Status de Entrega (Verde Esmeralda)
+| ID | Nome no Bling | Ação |
+|----|---------------|------|
+| 8  | Entregue | Nenhuma |
+| 23 | Tentativa de Entrega | Nenhuma |
+
+### 🟡 Status de Espera (Amarelo)
+| ID | Nome no Bling | Ação |
+|----|---------------|------|
+| 3  | Em Andamento | Nenhuma |
+| 6  | Aguardando | Nenhuma |
+| 13 | Pendente | Nenhuma |
+
+### 🔴 Status Problemáticos (Vermelho)
+| ID | Nome no Bling | Ação |
+|----|---------------|------|
+| 2  | Cancelado | Reverter baixa |
+| 7  | Não Entregue | Nenhuma |
+| 21 | Devolvido | Nenhuma |
+| 22 | Extraviado | Nenhuma |
+| 25 | Bloqueado | Nenhuma |
+| 26 | Suspenso | Nenhuma |
+| 29 | Reprovado | Nenhuma |
+
+### 🌸 Status Especiais (Rosa)
+| ID | Nome no Bling | Ação |
+|----|---------------|------|
+| 4  | Venda Agenciada | Nenhuma |
+| 30 | Estornado | Nenhuma |
+
+### 🟠 Status Aprovação (Laranja/Verde)
+| ID | Nome no Bling | Ação |
+|----|---------------|------|
+| 28 | Aprovado | Baixa no estoque? (confirmar) |
+
+## Status a Confirmar nos Logs
+Aguardando captura dos logs do Railway para confirmar IDs reais.
+
+## Como Usar Este Documento
+1. Sincronize pedidos no sistema
+2. Veja logs do Railway
+3. Procure por `🎯 STATUS CAPTURADO:`
+4. Atualize este documento com IDs reais
+5. Implemente mapeamento no código

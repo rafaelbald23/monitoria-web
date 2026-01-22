@@ -447,15 +447,81 @@ router.post('/force-sync-order/:accountId/:orderNumber', authMiddleware, async (
       console.log(`✅ BAIXA FORÇADA CONCLUÍDA: ${produtosProcessados} produtos processados`);
     }
 
+    // 🔴 PROCESSAR CANCELAMENTO - Devolver ao estoque se necessário
+    let cancelProcessed = false;
+    const isCancelled = status.toLowerCase().includes('cancelado');
+    
+    if (isCancelled && savedOrder.isProcessed && !savedOrder.isCancelled) {
+      console.log(`🔴 PROCESSANDO CANCELAMENTO para pedido #${targetOrder.numero} - Devolvendo ao estoque`);
+      
+      const items = targetOrder.itens || [];
+      let produtosDevolvidos = 0;
+
+      await prisma.$transaction(async (tx) => {
+        for (const item of items) {
+          const sku = item.codigo || item.produto?.codigo;
+          const quantidade = item.quantidade || 1;
+          
+          if (!sku) continue;
+
+          const product = await tx.product.findUnique({
+            where: { sku },
+          });
+
+          if (product) {
+            console.log(`↩️ DEVOLVENDO: ${quantidade}x ${product.name} (SKU: ${sku})`);
+            
+            // Criar movimento de ENTRADA para devolver ao estoque
+            await tx.movement.create({
+              data: {
+                type: 'ENTRY',
+                productId: product.id,
+                quantity: quantidade,
+                reason: `Devolução por cancelamento - Pedido #${targetOrder.numero}`,
+                userId,
+                syncStatus: 'synced',
+              },
+            });
+            
+            produtosDevolvidos++;
+          }
+        }
+
+        // Marcar como cancelado
+        await tx.blingOrder.update({
+          where: { id: savedOrder.id },
+          data: {
+            isCancelled: true,
+            cancelledAt: new Date(),
+          },
+        });
+      });
+
+      cancelProcessed = true;
+      console.log(`✅ CANCELAMENTO PROCESSADO: ${produtosDevolvidos} produtos devolvidos ao estoque`);
+    } else if (isCancelled && !savedOrder.isProcessed) {
+      // Pedido cancelado mas nunca teve baixa, apenas marcar como cancelado
+      await prisma.blingOrder.update({
+        where: { id: savedOrder.id },
+        data: {
+          isCancelled: true,
+          cancelledAt: new Date(),
+        },
+      });
+      console.log(`ℹ️ Pedido #${targetOrder.numero} cancelado (sem baixa prévia)`);
+    }
+
     res.json({ 
       success: true, 
-      message: `Pedido #${targetOrder.numero} sincronizado com status "${status}"${autoProcessed ? ' e baixa processada automaticamente' : ''}`,
+      message: `Pedido #${targetOrder.numero} sincronizado com status "${status}"${autoProcessed ? ' e baixa processada automaticamente' : ''}${cancelProcessed ? ' e produtos devolvidos ao estoque' : ''}`,
       debug: {
         statusTexto,
         foundField,
         finalStatus: status,
         needsProcessing,
         autoProcessed,
+        isCancelled,
+        cancelProcessed,
         statusNormalized,
         statusParaBaixa,
       }
