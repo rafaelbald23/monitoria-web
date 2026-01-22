@@ -1460,6 +1460,11 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
         console.log(`   - situacao completa:`, JSON.stringify(situacao, null, 2));
         console.log(`   - order keys:`, Object.keys(orderToUse));
         
+        // 🔍 CAPTURAR STATUS PARA MAPEAMENTO
+        if (situacao.id !== undefined) {
+          console.log(`🎯 STATUS CAPTURADO: ID=${situacao.id}, Nome="${situacao.nome || situacao.valor || 'N/A'}"`);
+        }
+        
         // NOVA ESTRATÉGIA: Testar TODOS os campos possíveis da situacao
         const possibleStatusFields = [
           // Campos mais comuns da API Bling v3

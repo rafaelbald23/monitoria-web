@@ -152,6 +152,11 @@ async function syncAccountOrders(account: any): Promise<{ success: boolean; proc
           console.log(`📋 [AUTO-SYNC] ANÁLISE Pedido #${orderToUse.numero}:`);
           console.log(`   - situacao:`, JSON.stringify(orderToUse.situacao, null, 2));
           
+          // 🔍 CAPTURAR STATUS PARA MAPEAMENTO
+          if (orderToUse.situacao?.id !== undefined) {
+            console.log(`🎯 [AUTO-SYNC] STATUS CAPTURADO: ID=${orderToUse.situacao.id}, Nome="${orderToUse.situacao.nome || orderToUse.situacao.valor || 'N/A'}"`);
+          }
+          
           // NOVA ESTRATÉGIA: Testar TODOS os campos possíveis da situacao
           const possibleStatusFields = [
             // Campos mais comuns da API Bling v3
