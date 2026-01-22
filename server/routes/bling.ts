@@ -1753,6 +1753,48 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
     console.log(`📊 Pedidos salvos no banco: ${savedOrders.length}`);
     console.log(`📊 Retornando ${savedOrders.length} pedidos para o frontend`);
 
+    // 🔄 ATUALIZAÇÃO AUTOMÁTICA: Buscar items para pedidos que estão vazios
+    console.log('🔍 Verificando pedidos com items vazios...');
+    let updatedCount = 0;
+    
+    for (const order of savedOrders) {
+      try {
+        const items = JSON.parse(order.items);
+        if (items.length === 0) {
+          console.log(`📦 Pedido #${order.orderNumber} sem items, buscando detalhes...`);
+          
+          // Buscar detalhes completos do Bling
+          const orderDetails = await fetchOrderDetails(order.blingOrderId, accessToken);
+          
+          if (orderDetails && orderDetails.itens && orderDetails.itens.length > 0) {
+            console.log(`✅ Encontrados ${orderDetails.itens.length} items para pedido #${order.orderNumber}`);
+            
+            // Atualizar no banco
+            await prisma.blingOrder.update({
+              where: { id: order.id },
+              data: {
+                items: JSON.stringify(orderDetails.itens),
+                updatedAt: new Date(),
+              },
+            });
+            
+            // Atualizar no array de retorno
+            order.items = JSON.stringify(orderDetails.itens);
+            updatedCount++;
+          }
+          
+          // Delay para respeitar rate limit
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      } catch (itemError: any) {
+        console.error(`❌ Erro ao atualizar items do pedido #${order.orderNumber}:`, itemError.message);
+      }
+    }
+    
+    if (updatedCount > 0) {
+      console.log(`✅ ${updatedCount} pedidos atualizados com items completos`);
+    }
+
     res.json({
       success: true,
       orders: savedOrders.map(o => ({

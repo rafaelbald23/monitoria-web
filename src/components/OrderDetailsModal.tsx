@@ -43,11 +43,6 @@ export default function OrderDetailsModal({ isOpen, onClose, order, onProcessOrd
 
   useEffect(() => {
     if (order && isOpen) {
-      console.log('📦 MODAL - Pedido recebido:', order);
-      console.log('📦 MODAL - Items:', order.items);
-      console.log('📦 MODAL - Items length:', order.items?.length);
-      console.log('📦 MODAL - Items type:', typeof order.items);
-      
       // Buscar correspondências de produtos no estoque
       fetchProductMatches();
     }
@@ -182,37 +177,9 @@ export default function OrderDetailsModal({ isOpen, onClose, order, onProcessOrd
 
             {/* Itens do Pedido */}
             <div>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                  Itens do Pedido ({order.items.length})
-                </h3>
-                {order.items.length === 0 && order.accountId && (
-                  <button
-                    onClick={async () => {
-                      try {
-                        const response = await fetch(`/api/bling/resync-order/${order.accountId}/${order.orderNumber}`, {
-                          method: 'POST',
-                          headers: {
-                            Authorization: `Bearer ${localStorage.getItem('accessToken') || localStorage.getItem('token')}`,
-                          },
-                        });
-                        const result = await response.json();
-                        if (result.success) {
-                          alert(`✅ ${result.message}`);
-                          window.location.reload();
-                        } else {
-                          alert(`❌ Erro: ${result.error}`);
-                        }
-                      } catch (error) {
-                        alert('❌ Erro ao re-sincronizar');
-                      }
-                    }}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-                  >
-                    🔄 Buscar Items do Bling
-                  </button>
-                )}
-              </div>
+              <h3 className={`text-lg font-semibold mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                Itens do Pedido ({order.items.length})
+              </h3>
               
               {order.items.length === 0 ? (
                 <div className={`p-8 text-center rounded-xl border ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
@@ -221,7 +188,7 @@ export default function OrderDetailsModal({ isOpen, onClose, order, onProcessOrd
                     Nenhum item encontrado
                   </p>
                   <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                    Este pedido foi sincronizado antes da atualização. Clique no botão acima para buscar os items do Bling.
+                    Sincronize os pedidos novamente para buscar os items automaticamente.
                   </p>
                 </div>
               ) : (
