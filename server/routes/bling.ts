@@ -1801,6 +1801,68 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
             } else {
               console.log(`ℹ️ Pedido #${orderData.orderNumber} com status "${orderData.status}" - não requer baixa automática`);
             }
+
+            // 🔴 PROCESSAR CANCELAMENTO - Devolver ao estoque se necessário
+            const isCancelled = orderData.status.toLowerCase().includes('cancelado');
+            
+            if (isCancelled && savedOrder.isProcessed && !savedOrder.isCancelled) {
+              console.log(`🔴 PROCESSANDO CANCELAMENTO para pedido #${orderData.orderNumber} - Devolvendo ao estoque`);
+              
+              const items = JSON.parse(orderData.items);
+              let produtosDevolvidos = 0;
+
+              for (const item of items) {
+                const sku = item.codigo || item.produto?.codigo;
+                const quantidade = item.quantidade || 1;
+                
+                if (!sku) continue;
+
+                const product = await tx.product.findUnique({
+                  where: { sku },
+                });
+
+                if (product) {
+                  console.log(`↩️ DEVOLVENDO: ${quantidade}x ${product.name} (SKU: ${sku})`);
+                  
+                  // Criar movimento de ENTRADA para devolver ao estoque
+                  await tx.movement.create({
+                    data: {
+                      type: 'ENTRY',
+                      productId: product.id,
+                      quantity: quantidade,
+                      reason: `Devolução por cancelamento - Pedido #${orderData.orderNumber}`,
+                      userId,
+                      syncStatus: 'synced',
+                    },
+                  });
+                  
+                  produtosDevolvidos++;
+                }
+              }
+
+              // Marcar como cancelado
+              await tx.blingOrder.update({
+                where: { id: savedOrder.id },
+                data: {
+                  isCancelled: true,
+                  cancelledAt: new Date(),
+                },
+              });
+
+              console.log(`✅ CANCELAMENTO PROCESSADO: ${produtosDevolvidos} produtos devolvidos ao estoque`);
+            } else if (isCancelled && !savedOrder.isProcessed && !savedOrder.isCancelled) {
+              // Pedido cancelado mas nunca teve baixa, apenas marcar como cancelado
+              await tx.blingOrder.update({
+                where: { id: savedOrder.id },
+                data: {
+                  isCancelled: true,
+                  cancelledAt: new Date(),
+                },
+              });
+              console.log(`ℹ️ Pedido #${orderData.orderNumber} cancelado (sem baixa prévia)`);
+            } else if (isCancelled && savedOrder.isCancelled) {
+              console.log(`ℹ️ Pedido #${orderData.orderNumber} já foi marcado como cancelado anteriormente`);
+            }
           } catch (upsertError: any) {
             console.error(`❌ Erro ao salvar pedido ${orderData.orderNumber}:`, upsertError.message);
           }

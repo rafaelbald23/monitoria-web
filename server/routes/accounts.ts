@@ -175,14 +175,36 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
     for (const bp of allProducts) {
       try {
         const sku = bp.codigo || String(bp.id);
+        const ean = bp.gtin || bp.ean || null;
+        const nomeNormalizado = bp.nome?.trim().toLowerCase() || '';
         
-        // Buscar produto existente por SKU primeiro
-        let existing = await prisma.product.findUnique({
+        console.log(`🔍 Processando: SKU="${sku}", EAN="${ean}", Nome="${bp.nome}"`);
+        
+        // ESTRATÉGIA ANTI-DUPLICAÇÃO MELHORADA
+        let existing = null;
+        
+        // 1. Buscar por SKU exato
+        existing = await prisma.product.findUnique({
           where: { sku },
         });
-
-        // Se não encontrou por SKU, buscar por nome
-        if (!existing && bp.nome) {
+        
+        if (existing) {
+          console.log(`✅ Produto encontrado por SKU: ${existing.name}`);
+        }
+        
+        // 2. Se não encontrou por SKU, buscar por EAN (se disponível)
+        if (!existing && ean) {
+          existing = await prisma.product.findFirst({
+            where: { ean },
+          });
+          
+          if (existing) {
+            console.log(`✅ Produto encontrado por EAN: ${existing.name}`);
+          }
+        }
+        
+        // 3. Se não encontrou por SKU/EAN, buscar por nome normalizado
+        if (!existing && nomeNormalizado) {
           existing = await prisma.product.findFirst({
             where: { 
               name: {
@@ -191,13 +213,49 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
               }
             },
           });
+          
+          if (existing) {
+            console.log(`✅ Produto encontrado por nome: ${existing.name}`);
+          }
+        }
+        
+        // 4. Busca por similaridade de nome (últimos 80% do nome)
+        if (!existing && nomeNormalizado.length > 5) {
+          const allProducts = await prisma.product.findMany({
+            select: { id: true, name: true, sku: true, ean: true }
+          });
+          
+          existing = allProducts.find(p => {
+            const productName = p.name.toLowerCase().trim();
+            // Verifica se um nome contém o outro (80% de match)
+            const minLength = Math.min(productName.length, nomeNormalizado.length);
+            const matchThreshold = minLength * 0.8;
+            
+            if (productName.includes(nomeNormalizado) || nomeNormalizado.includes(productName)) {
+              return true;
+            }
+            
+            // Verifica palavras-chave em comum
+            const words1 = productName.split(/\s+/).filter(w => w.length > 3);
+            const words2 = nomeNormalizado.split(/\s+/).filter(w => w.length > 3);
+            const commonWords = words1.filter(w => words2.includes(w));
+            
+            return commonWords.length >= Math.min(words1.length, words2.length) * 0.7;
+          });
+          
+          if (existing) {
+            console.log(`✅ Produto encontrado por similaridade: ${existing.name}`);
+          }
         }
 
         if (!existing) {
-          // Criar novo produto
+          // CRIAR NOVO PRODUTO apenas se realmente não existe
+          console.log(`➕ Criando novo produto: ${bp.nome}`);
+          
           const product = await prisma.product.create({
             data: {
               sku,
+              ean: ean,
               name: bp.nome.trim(),
               salePrice: bp.preco || 0,
               isActive: true,
@@ -330,5 +388,137 @@ async function refreshAccessToken(account: any): Promise<string> {
 
   return tokens.access_token;
 }
+
+// Rota para limpar produtos duplicados
+router.post('/cleanup-duplicates', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    
+    console.log('🧹 Iniciando limpeza de produtos duplicados...');
+    
+    // Buscar todos os produtos do usuário
+    const allProducts = await prisma.product.findMany({
+      include: {
+        movements: {
+          where: { userId },
+          orderBy: { createdAt: 'asc' }
+        },
+        mappings: true,
+      }
+    });
+    
+    console.log(`📦 Total de produtos: ${allProducts.length}`);
+    
+    // Agrupar produtos por nome normalizado
+    const productsByName = new Map<string, typeof allProducts>();
+    
+    for (const product of allProducts) {
+      const normalizedName = product.name.toLowerCase().trim();
+      
+      if (!productsByName.has(normalizedName)) {
+        productsByName.set(normalizedName, []);
+      }
+      
+      productsByName.get(normalizedName)!.push(product);
+    }
+    
+    let duplicatesFound = 0;
+    let duplicatesRemoved = 0;
+    const mergeLog: string[] = [];
+    
+    // Processar grupos com duplicatas
+    for (const [name, products] of productsByName.entries()) {
+      if (products.length > 1) {
+        duplicatesFound += products.length - 1;
+        console.log(`\n🔍 Duplicatas encontradas para "${name}": ${products.length} produtos`);
+        
+        // Ordenar por: 1) tem movimentos, 2) mais antigo
+        products.sort((a, b) => {
+          if (a.movements.length !== b.movements.length) {
+            return b.movements.length - a.movements.length; // Mais movimentos primeiro
+          }
+          return a.createdAt.getTime() - b.createdAt.getTime(); // Mais antigo primeiro
+        });
+        
+        const keepProduct = products[0]; // Manter o primeiro (com mais movimentos ou mais antigo)
+        const duplicates = products.slice(1); // Remover os demais
+        
+        console.log(`✅ Mantendo: ${keepProduct.name} (SKU: ${keepProduct.sku}, Movimentos: ${keepProduct.movements.length})`);
+        
+        for (const duplicate of duplicates) {
+          console.log(`❌ Removendo: ${duplicate.name} (SKU: ${duplicate.sku}, Movimentos: ${duplicate.movements.length})`);
+          
+          try {
+            // Transferir movimentos do duplicado para o produto principal
+            if (duplicate.movements.length > 0) {
+              await prisma.movement.updateMany({
+                where: { productId: duplicate.id },
+                data: { productId: keepProduct.id }
+              });
+              console.log(`  ↪️ ${duplicate.movements.length} movimentos transferidos`);
+            }
+            
+            // Transferir mappings
+            if (duplicate.mappings.length > 0) {
+              for (const mapping of duplicate.mappings) {
+                // Verificar se já existe mapping para esta conta
+                const existingMapping = await prisma.productMapping.findFirst({
+                  where: {
+                    productId: keepProduct.id,
+                    accountId: mapping.accountId,
+                  }
+                });
+                
+                if (!existingMapping) {
+                  await prisma.productMapping.update({
+                    where: { id: mapping.id },
+                    data: { productId: keepProduct.id }
+                  });
+                  console.log(`  ↪️ Mapping transferido`);
+                } else {
+                  await prisma.productMapping.delete({
+                    where: { id: mapping.id }
+                  });
+                  console.log(`  ↪️ Mapping duplicado removido`);
+                }
+              }
+            }
+            
+            // Deletar produto duplicado
+            await prisma.product.delete({
+              where: { id: duplicate.id }
+            });
+            
+            duplicatesRemoved++;
+            mergeLog.push(`Mesclado: "${duplicate.name}" (${duplicate.sku}) → "${keepProduct.name}" (${keepProduct.sku})`);
+            
+          } catch (deleteError: any) {
+            console.error(`  ⚠️ Erro ao remover duplicado: ${deleteError.message}`);
+          }
+        }
+      }
+    }
+    
+    console.log(`\n🎉 Limpeza concluída:`);
+    console.log(`   - Duplicatas encontradas: ${duplicatesFound}`);
+    console.log(`   - Duplicatas removidas: ${duplicatesRemoved}`);
+    
+    res.json({
+      success: true,
+      duplicatesFound,
+      duplicatesRemoved,
+      mergeLog,
+      message: `${duplicatesRemoved} produtos duplicados foram mesclados com sucesso!`
+    });
+    
+  } catch (error: any) {
+    console.error('❌ Erro ao limpar duplicados:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Erro ao limpar produtos duplicados',
+      details: error.message 
+    });
+  }
+});
 
 export default router;

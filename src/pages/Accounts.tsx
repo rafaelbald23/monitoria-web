@@ -84,7 +84,7 @@ export default function Accounts() {
 
   const handleSync = async (id: string) => {
     try {
-      const result = await api.syncAccount(id);
+      const result = await api.syncAccount(id) as any;
       loadAccounts();
       if (result.success) {
         alert(`Sincronização concluída!\n\n${result.imported} produtos novos importados\n${result.updated || 0} produtos atualizados\n${result.total} produtos no total`);
@@ -99,7 +99,7 @@ export default function Accounts() {
 
   const handleConnectBling = async (id: string) => {
     try {
-      const result = await api.startBlingOAuth(id);
+      const result = await api.startBlingOAuth(id) as any;
       if (result.success && result.authUrl) {
         window.open(result.authUrl, '_blank', 'width=600,height=700');
       } else {
@@ -111,15 +111,61 @@ export default function Accounts() {
     }
   };
 
+  const handleCleanupDuplicates = async () => {
+    if (!confirm('Deseja limpar produtos duplicados?\n\nEsta ação irá:\n- Identificar produtos com nomes similares\n- Mesclar duplicatas mantendo o mais antigo\n- Transferir movimentos e histórico\n\nEsta ação não pode ser desfeita.')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await fetch('/api/accounts/cleanup-duplicates', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        alert(`✅ Limpeza concluída!\n\n${result.duplicatesRemoved} produtos duplicados foram mesclados.\n\nDetalhes:\n${result.mergeLog?.slice(0, 5).join('\n') || 'Nenhuma duplicata encontrada'}`);
+      } else {
+        alert('Erro: ' + (result.error || 'Erro ao limpar duplicados'));
+      }
+    } catch (error) {
+      console.error('Erro ao limpar duplicados:', error);
+      alert('Erro ao limpar produtos duplicados');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Layout>
       <div className="p-6">
         <div className="flex justify-between items-center mb-6">
           <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Contas Bling</h1>
-          <button onClick={() => { setEditingAccount(null); setFormData({ name: '', clientId: '', clientSecret: '' }); setShowModal(true); }} className="flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-purple-500 text-white px-4 py-2 rounded-xl hover:opacity-90 transition-opacity">
-            <PlusIcon size={18} />
-            Nova Conta
-          </button>
+          <div className="flex gap-2">
+            <button 
+              onClick={handleCleanupDuplicates}
+              disabled={loading}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-colors ${
+                loading 
+                  ? 'opacity-50 cursor-not-allowed' 
+                  : isDarkMode 
+                    ? 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30' 
+                    : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+              }`}
+            >
+              <RefreshIcon size={18} className={loading ? 'animate-spin' : ''} />
+              Limpar Duplicados
+            </button>
+            <button onClick={() => { setEditingAccount(null); setFormData({ name: '', clientId: '', clientSecret: '' }); setShowModal(true); }} className="flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-purple-500 text-white px-4 py-2 rounded-xl hover:opacity-90 transition-opacity">
+              <PlusIcon size={18} />
+              Nova Conta
+            </button>
+          </div>
         </div>
 
         {loading ? (
