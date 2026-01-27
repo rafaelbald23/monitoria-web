@@ -181,7 +181,7 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
         console.log(`🔍 Processando: SKU="${sku}", EAN="${ean}", Nome="${bp.nome}"`);
         
         // ESTRATÉGIA ANTI-DUPLICAÇÃO MELHORADA
-        let existing = null;
+        let existing: any = null;
         
         // 1. Buscar por SKU exato
         existing = await prisma.product.findUnique({
@@ -225,7 +225,7 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
             select: { id: true, name: true, sku: true, ean: true }
           });
           
-          existing = allProducts.find(p => {
+          existing = allProducts.find((p: any) => {
             const productName = p.name.toLowerCase().trim();
             // Verifica se um nome contém o outro (80% de match)
             const minLength = Math.min(productName.length, nomeNormalizado.length);
@@ -236,9 +236,9 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
             }
             
             // Verifica palavras-chave em comum
-            const words1 = productName.split(/\s+/).filter(w => w.length > 3);
-            const words2 = nomeNormalizado.split(/\s+/).filter(w => w.length > 3);
-            const commonWords = words1.filter(w => words2.includes(w));
+            const words1 = productName.split(/\s+/).filter((w: string) => w.length > 3);
+            const words2 = nomeNormalizado.split(/\s+/).filter((w: string) => w.length > 3);
+            const commonWords = words1.filter((w: string) => words2.includes(w));
             
             return commonWords.length >= Math.min(words1.length, words2.length) * 0.7;
           });
