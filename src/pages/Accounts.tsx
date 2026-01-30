@@ -118,18 +118,10 @@ export default function Accounts() {
 
     try {
       setLoading(true);
-      const response = await fetch('/api/accounts/cleanup-duplicates', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-
-      const result = await response.json();
+      const result = await api.cleanupDuplicates();
       
       if (result.success) {
-        alert(`✅ Limpeza concluída!\n\n${result.duplicatesRemoved} produtos duplicados foram mesclados.\n\nDetalhes:\n${result.mergeLog?.slice(0, 5).join('\n') || 'Nenhuma duplicata encontrada'}`);
+        alert(`Limpeza concluída!\n\n${result.duplicatesRemoved} produtos duplicados foram mesclados.\n\nDetalhes:\n${result.mergeLog?.slice(0, 5).join('\n') || 'Nenhuma duplicata encontrada'}`);
       } else {
         alert('Erro: ' + (result.error || 'Erro ao limpar duplicados'));
       }

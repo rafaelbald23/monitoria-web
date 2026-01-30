@@ -129,6 +129,10 @@ export const api = {
     request(`/accounts/${id}/sync`, {
       method: 'POST',
     }),
+  cleanupDuplicates: () =>
+    request('/accounts/cleanup-duplicates', {
+      method: 'POST',
+    }),
 
   // Bling OAuth
   startBlingOAuth: (accountId: string) =>

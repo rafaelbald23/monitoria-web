@@ -394,7 +394,7 @@ router.post('/cleanup-duplicates', authMiddleware, async (req: AuthRequest, res:
   try {
     const userId = req.user!.userId;
     
-    console.log('🧹 Iniciando limpeza de produtos duplicados...');
+    console.log('🧹 Iniciando limpeza de produtos duplicados para usuário:', userId);
     
     // Buscar todos os produtos do usuário
     const allProducts = await prisma.product.findMany({
