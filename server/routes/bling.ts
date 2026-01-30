@@ -1740,8 +1740,7 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
                   product = await tx.product.findFirst({
                     where: {
                       name: {
-                        equals: nome,
-                        mode: 'insensitive'
+                        contains: nome
                       }
                     }
                   });

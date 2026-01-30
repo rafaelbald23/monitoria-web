@@ -208,8 +208,7 @@ router.post('/:id/sync', authMiddleware, async (req: AuthRequest, res: Response)
           existing = await prisma.product.findFirst({
             where: { 
               name: {
-                equals: bp.nome.trim(),
-                mode: 'insensitive'
+                contains: bp.nome.trim()
               }
             },
           });
