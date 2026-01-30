@@ -10,6 +10,7 @@
     "build": "npm run build:client && npm run build:server",
     "build:client": "vite build",
     "build:server": "tsc -p tsconfig.server.json",
+    "build:server:nocheck": "tsc -p tsconfig.server.json --noEmitOnError false",
     "start": "node scripts/start.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",

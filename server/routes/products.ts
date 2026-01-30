@@ -44,8 +44,8 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
 
     console.log(`📊 Produtos encontrados para usuário ${userId}: ${products.length}`);
     
-    const result = products.map((p) => {
-      const stock = p.movements.reduce((sum, m) => {
+    const result = products.map((p: any) => {
+      const stock = p.movements.reduce((sum: number, m: any) => {
         return m.type === 'ENTRY' ? sum + m.quantity : sum - m.quantity;
       }, 0);
 
@@ -101,6 +101,18 @@ router.get('/search', authMiddleware, async (req: AuthRequest, res: Response) =>
         movements: {
           where: { userId: userId },
         },
+        mappings: {
+          where: {
+            account: {
+              userId: userId,
+            },
+          },
+          include: {
+            account: {
+              select: { name: true, userId: true },
+            },
+          },
+        },
       },
     });
 
@@ -108,7 +120,7 @@ router.get('/search', authMiddleware, async (req: AuthRequest, res: Response) =>
       return res.status(404).json({ error: 'Produto não encontrado' });
     }
 
-    const stock = product.movements.reduce((sum, m) => {
+    const stock = product.movements.reduce((sum: number, m: any) => {
       return m.type === 'ENTRY' ? sum + m.quantity : sum - m.quantity;
     }, 0);
 
@@ -119,6 +131,8 @@ router.get('/search', authMiddleware, async (req: AuthRequest, res: Response) =>
       name: product.name,
       price: product.salePrice || 0,
       stock,
+      accountId: product.mappings[0]?.accountId || '',
+      accountName: product.mappings[0]?.account?.name || '',
     });
   } catch (error) {
     console.error('Erro ao buscar produto:', error);
@@ -220,7 +234,7 @@ router.put('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
         where: { productId: id, userId },
       });
 
-      const currentStock = movements.reduce((sum, m) => {
+      const currentStock = movements.reduce((sum: number, m: any) => {
         return m.type === 'ENTRY' ? sum + m.quantity : sum - m.quantity;
       }, 0);
 
@@ -417,7 +431,7 @@ router.post('/zero-all-stock', authMiddleware, async (req: AuthRequest, res: Res
         console.log(`Processando produto: ${product.name} (${product.sku})`);
         
         // Calcular estoque atual
-        const currentStock = product.movements.reduce((sum, m) => {
+        const currentStock = product.movements.reduce((sum: number, m: any) => {
           return m.type === 'ENTRY' ? sum + m.quantity : sum - m.quantity;
         }, 0);
 

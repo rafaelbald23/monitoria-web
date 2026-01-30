@@ -35,6 +35,8 @@ export default function Products() {
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [searchCode, setSearchCode] = useState('');
+  const [searching, setSearching] = useState(false);
   const [formData, setFormData] = useState({
     sku: '',
     ean: '',
@@ -258,6 +260,46 @@ export default function Products() {
     setShowModal(true);
   };
 
+  // Função para buscar produto por EAN/SKU e abrir edição automaticamente
+  const handleSearchByCode = async (code: string) => {
+    if (!code.trim()) return;
+    
+    setSearching(true);
+    try {
+      const product = await api.searchProduct(code.trim());
+      
+      // Encontrou o produto, abrir modal de edição automaticamente
+      setEditingProduct(product);
+      setFormData({
+        sku: product.sku || '',
+        ean: product.ean || '',
+        name: product.name || '',
+        price: (product.price || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+        stock: (product.stock || 0).toString(),
+        accountId: (product.accountId || '').toString()
+      });
+      setShowModal(true);
+      setSearchCode(''); // Limpar campo de busca
+      showMessage('success', `Produto encontrado: ${product.name}`);
+    } catch (error: any) {
+      console.error('Erro ao buscar produto:', error);
+      if (error.message.includes('não encontrado')) {
+        showMessage('error', 'Produto não encontrado com este código EAN/SKU');
+      } else {
+        showMessage('error', 'Erro ao buscar produto');
+      }
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  // Função para lidar com Enter na busca
+  const handleSearchKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSearchByCode(searchCode);
+    }
+  };
+
   const productColumns = [
     { key: 'sku', label: 'SKU' },
     { key: 'ean', label: 'EAN' },
@@ -350,6 +392,56 @@ export default function Products() {
             {message.text}
           </div>
         )}
+
+        {/* Barra de Pesquisa por EAN/SKU */}
+        <div className={`mb-6 p-4 rounded-xl border ${
+          isDarkMode 
+            ? 'bg-gray-800/50 border-gray-700' 
+            : 'bg-gray-50 border-gray-200'
+        }`}>
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <label className={`block text-sm font-medium mb-2 ${
+                isDarkMode ? 'text-gray-300' : 'text-gray-700'
+              }`}>
+                🔍 Busca Rápida por EAN/SKU (Para Contagem de Estoque)
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={searchCode}
+                  onChange={(e) => setSearchCode(e.target.value)}
+                  onKeyPress={handleSearchKeyPress}
+                  placeholder="Digite ou bipe o código EAN/SKU do produto..."
+                  className={`flex-1 px-4 py-3 rounded-xl border transition-colors text-lg ${
+                    isDarkMode
+                      ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-cyan-500'
+                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-cyan-500'
+                  } focus:outline-none focus:ring-2 focus:ring-cyan-500/20`}
+                  disabled={searching}
+                />
+                <button
+                  onClick={() => handleSearchByCode(searchCode)}
+                  disabled={searching || !searchCode.trim()}
+                  className={`px-6 py-3 rounded-xl font-medium transition-colors ${
+                    searching || !searchCode.trim()
+                      ? isDarkMode 
+                        ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
+                        : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-cyan-500 to-purple-500 text-white hover:opacity-90'
+                  }`}
+                >
+                  {searching ? 'Buscando...' : 'Buscar'}
+                </button>
+              </div>
+              <p className={`text-xs mt-2 ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}>
+                💡 Dica: Digite o código e pressione Enter, ou use um leitor de código de barras. O produto será aberto automaticamente para edição.
+              </p>
+            </div>
+          </div>
+        </div>
 
         {/* Products Table */}
         {loading ? (
