@@ -201,7 +201,10 @@ export default function OrderDetailsModal({ isOpen, onClose, order, onProcessOrd
                           Produto
                         </th>
                         <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                          SKU/EAN
+                          SKU
+                        </th>
+                        <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          EAN
                         </th>
                         <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                           Qtd
@@ -228,13 +231,13 @@ export default function OrderDetailsModal({ isOpen, onClose, order, onProcessOrd
                           <tr key={index} className={`transition-colors ${isDarkMode ? 'hover:bg-white/5' : 'hover:bg-gray-50'}`}>
                             <td className={`px-4 py-3 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                               <div>
-                                <p className="font-medium">{nome || 'Produto sem nome'}</p>
+                                <p className="font-medium">{nome || 'Sem descrição'}</p>
                                 {match && (
                                   <p className={`text-xs ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>
                                     ✓ Encontrado no estoque: {match.name}
                                   </p>
                                 )}
-                                {!match && (
+                                {!match && nome && (
                                   <p className={`text-xs ${isDarkMode ? 'text-red-400' : 'text-red-600'}`}>
                                     ⚠️ Não encontrado no estoque
                                   </p>
@@ -242,11 +245,10 @@ export default function OrderDetailsModal({ isOpen, onClose, order, onProcessOrd
                               </div>
                             </td>
                             <td className={`px-4 py-3 text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                              <div>
-                                {sku && <p>SKU: {sku}</p>}
-                                {ean && <p>EAN: {ean}</p>}
-                                {!sku && !ean && <p className="text-gray-500">-</p>}
-                              </div>
+                              {sku || <span className="text-gray-500">-</span>}
+                            </td>
+                            <td className={`px-4 py-3 text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                              {ean || <span className="text-gray-500">-</span>}
                             </td>
                             <td className={`px-4 py-3 text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                               {item.quantidade}
