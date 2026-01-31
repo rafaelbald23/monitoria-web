@@ -227,14 +227,17 @@ export default function OrderDetailsModal({ isOpen, onClose, order, onProcessOrd
                         const ean = item.ean || item.produto?.ean;
                         const match = (sku && productMatches[sku]) || (ean && productMatches[ean]) || (nome && productMatches[nome]);
                         
+                        // Usar o nome do match (produto no estoque) como nome principal
+                        const displayName = match?.name || nome || 'Sem descrição';
+                        
                         return (
                           <tr key={index} className={`transition-colors ${isDarkMode ? 'hover:bg-white/5' : 'hover:bg-gray-50'}`}>
                             <td className={`px-4 py-3 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                               <div>
-                                <p className="font-medium">{nome || 'Sem descrição'}</p>
-                                {match && (
+                                <p className="font-medium">{displayName}</p>
+                                {match && match.name !== displayName && (
                                   <p className={`text-xs ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>
-                                    ✓ Encontrado no estoque: {match.name}
+                                    ✓ Encontrado no estoque
                                   </p>
                                 )}
                                 {!match && nome && (
