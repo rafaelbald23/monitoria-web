@@ -230,6 +230,9 @@ export default function OrderDetailsModal({ isOpen, onClose, order, onProcessOrd
                         // Usar o nome do match (produto no estoque) como nome principal
                         const displayName = match?.name || nome || 'Sem descrição';
                         
+                        // PROCV: Buscar EAN do produto no estoque pelo SKU
+                        const displayEan = match?.ean || ean || '-';
+                        
                         return (
                           <tr key={index} className={`transition-colors ${isDarkMode ? 'hover:bg-white/5' : 'hover:bg-gray-50'}`}>
                             <td className={`px-4 py-3 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -251,7 +254,7 @@ export default function OrderDetailsModal({ isOpen, onClose, order, onProcessOrd
                               {sku || <span className="text-gray-500">-</span>}
                             </td>
                             <td className={`px-4 py-3 text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                              {ean || <span className="text-gray-500">-</span>}
+                              {displayEan !== '-' ? displayEan : <span className="text-gray-500">-</span>}
                             </td>
                             <td className={`px-4 py-3 text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                               {item.quantidade}
