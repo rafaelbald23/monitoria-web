@@ -2119,7 +2119,10 @@ router.get('/orders/all/:accountId', authMiddleware, async (req: AuthRequest, re
         userId,
         createdAt: { gte: threeMonthsAgo },
       },
-      orderBy: { blingCreatedAt: 'desc' }, // Ordenar pela data do Bling (mais recente primeiro)
+      orderBy: [
+        { blingCreatedAt: 'desc' }, // Data mais recente primeiro
+        { orderNumber: 'desc' },    // Número de pedido maior primeiro (dentro da mesma data)
+      ],
     });
 
     res.json({
