@@ -386,10 +386,11 @@ Deve processar estoque: ${inv.comparison.shouldProcessStock ? 'SIM' : 'NÃO'}`;
       // Status de Verificação/Aprovação (Verde)
       'Verificado': isDarkMode ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-green-100 text-green-700 border-green-200',
       'Checado': isDarkMode ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-green-100 text-green-700 border-green-200',
+      'Atendido': isDarkMode ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-green-100 text-green-700 border-green-200',
+      'Despachado': isDarkMode ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-green-100 text-green-700 border-green-200',
       'Aprovado': isDarkMode ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-green-100 text-green-700 border-green-200',
       
       // Status de Processamento (Azul)
-      'Atendido': isDarkMode ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' : 'bg-blue-100 text-blue-700 border-blue-200',
       'Faturado': isDarkMode ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' : 'bg-blue-100 text-blue-700 border-blue-200',
       'Processando': isDarkMode ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' : 'bg-blue-100 text-blue-700 border-blue-200',
       
@@ -442,7 +443,7 @@ Deve processar estoque: ${inv.comparison.shouldProcessStock ? 'SIM' : 'NÃO'}`;
     return colors[status] || (isDarkMode ? 'bg-gray-500/20 text-gray-400 border-gray-500/30' : 'bg-gray-100 text-gray-700 border-gray-200');
   };
 
-  const allStatuses = ['all', 'Verificado', 'Checado', 'Atendido', 'Em Andamento', 'Em Aberto', 'Cancelado', 'Enviado', 'Entregue', 'Pronto para Envio'];
+  const allStatuses = ['all', 'Verificado', 'Checado', 'Atendido', 'Despachado', 'Em Andamento', 'Em Aberto', 'Cancelado', 'Enviado', 'Entregue', 'Pronto para Envio'];
   
   const filteredOrders = blingOrders.filter(order => filter === 'all' || order.status === filter);
 
@@ -680,7 +681,7 @@ Deve processar estoque: ${inv.comparison.shouldProcessStock ? 'SIM' : 'NÃO'}`;
                       <td className="px-6 py-4 whitespace-nowrap">
                         {order.isProcessed ? (
                           <span className={"px-2 py-1 rounded text-xs " + (isDarkMode ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-700')}>✓ Processado</span>
-                        ) : (order.status === 'Verificado' || order.status === 'Checado') ? (
+                        ) : (order.status === 'Verificado' || order.status === 'Checado' || order.status === 'Atendido' || order.status === 'Despachado') ? (
                           <span className={"px-2 py-1 rounded text-xs " + (isDarkMode ? 'bg-yellow-500/20 text-yellow-400' : 'bg-yellow-100 text-yellow-700')}>Pendente</span>
                         ) : (
                           <span className={"text-xs " + (isDarkMode ? 'text-gray-500' : 'text-gray-400')}>-</span>
