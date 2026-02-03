@@ -79,11 +79,20 @@ export default function Sales() {
         }
       }
       
-      // Ordenar por data do Bling (mais recente primeiro)
+      // Ordenar por data do Bling (mais recente primeiro), depois por número do pedido (maior primeiro)
       allOrders.sort((a, b) => {
         const dateA = a.blingCreatedAt ? new Date(a.blingCreatedAt).getTime() : new Date(a.createdAt).getTime();
         const dateB = b.blingCreatedAt ? new Date(b.blingCreatedAt).getTime() : new Date(b.createdAt).getTime();
-        return dateB - dateA;
+        
+        // Primeiro ordena por data
+        if (dateB !== dateA) {
+          return dateB - dateA;
+        }
+        
+        // Se as datas forem iguais, ordena por número do pedido (maior primeiro)
+        const numA = parseInt(a.orderNumber) || 0;
+        const numB = parseInt(b.orderNumber) || 0;
+        return numB - numA;
       });
       setBlingOrders(allOrders);
       
