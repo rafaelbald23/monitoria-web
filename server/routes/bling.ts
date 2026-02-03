@@ -2204,4 +2204,101 @@ router.post('/orders/:orderId/process', authMiddleware, async (req: AuthRequest,
   }
 });
 
+// 🔧 ENDPOINT PARA CORRIGIR STATUS DE PEDIDOS EXISTENTES
+router.post('/fix-order-status/:accountId', async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    const userId = req.user!.userId;
+
+    console.log(`🔧 Iniciando correção de status para conta ${accountId}...`);
+
+    // Buscar conta
+    const account = await prisma.blingAccount.findFirst({
+      where: { id: accountId, userId },
+    });
+
+    if (!account || !account.accessToken) {
+      return res.json({ success: false, error: 'Conta não encontrada ou sem token' });
+    }
+
+    // Buscar todos os pedidos da conta
+    const orders = await prisma.blingOrder.findMany({
+      where: { accountId, userId },
+    });
+
+    console.log(`📦 Encontrados ${orders.length} pedidos para verificar`);
+
+    let updatedCount = 0;
+    const statusMap: Record<number, string> = {
+      0: 'Em Aberto', 1: 'Atendido', 2: 'Cancelado', 3: 'Em Andamento', 4: 'Venda Agenciada',
+      5: 'Verificado', 6: 'Aguardando', 7: 'Não Entregue', 8: 'Entregue', 9: 'Em Digitação',
+      10: 'Checado', 11: 'Enviado', 12: 'Cancelado', 13: 'Pendente', 14: 'Faturado',
+      15: 'Pronto', 16: 'Impresso', 17: 'Separado', 18: 'Embalado', 19: 'Coletado',
+      20: 'Em Trânsito', 21: 'Devolvido', 22: 'Extraviado', 23: 'Tentativa de Entrega',
+      24: 'Verificado',
+      25: 'Bloqueado', 26: 'Suspenso', 27: 'Processando',
+      28: 'Aprovado', 29: 'Reprovado', 30: 'Estornado',
+    };
+
+    // Para cada pedido, buscar status atual no Bling
+    for (const order of orders) {
+      try {
+        await new Promise(resolve => setTimeout(resolve, 400)); // Rate limit
+
+        const response = await fetch(
+          `https://www.bling.com.br/Api/v3/pedidos/vendas/${order.blingOrderId}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${account.accessToken}`,
+              'Accept': 'application/json',
+            },
+          }
+        );
+
+        if (!response.ok) continue;
+
+        const data = await response.json();
+        const blingOrder = data.data;
+        const situacao = blingOrder?.situacao || {};
+        const statusId = situacao.id;
+
+        // Mapear status correto usando ID
+        let correctStatus: string;
+        if (statusId !== undefined && statusMap[statusId]) {
+          correctStatus = statusMap[statusId];
+        } else {
+          continue; // Pular se não conseguir mapear
+        }
+
+        // Atualizar se o status estiver diferente
+        if (order.status !== correctStatus) {
+          await prisma.blingOrder.update({
+            where: { id: order.id },
+            data: { status: correctStatus },
+          });
+          
+          console.log(`✅ Pedido #${order.orderNumber}: "${order.status}" → "${correctStatus}"`);
+          updatedCount++;
+        }
+
+      } catch (err) {
+        console.error(`❌ Erro ao processar pedido #${order.orderNumber}:`, err);
+      }
+    }
+
+    console.log(`🎉 Correção concluída! ${updatedCount} pedidos atualizados.`);
+
+    res.json({
+      success: true,
+      message: `${updatedCount} pedidos atualizados com sucesso`,
+      total: orders.length,
+      updated: updatedCount,
+    });
+
+  } catch (error: any) {
+    console.error('❌ Erro na correção de status:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 export default router;
