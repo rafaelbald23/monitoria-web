@@ -133,36 +133,6 @@ export default function Accounts() {
     }
   };
 
-  const handleFixOrderStatus = async (accountId: string) => {
-    if (!confirm('Deseja corrigir os status dos pedidos?\n\nEsta ação irá:\n- Buscar todos os pedidos desta conta no Bling\n- Atualizar status incorretos (ex: Aguardando → Atendido)\n- Usar o ID do status como referência\n\nIsso pode levar alguns minutos.')) {
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const response = await fetch(`/api/bling/fix-order-status/${accountId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-
-      const result = await response.json();
-      
-      if (result.success) {
-        alert(`Correção concluída!\n\n${result.updated} de ${result.total} pedidos foram atualizados.`);
-      } else {
-        alert('Erro: ' + (result.error || 'Erro ao corrigir status'));
-      }
-    } catch (error) {
-      console.error('Erro ao corrigir status:', error);
-      alert('Erro ao corrigir status dos pedidos');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <Layout>
       <div className="p-6">
@@ -231,10 +201,6 @@ export default function Accounts() {
                   <button onClick={() => handleSync(account.id)} className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-colors ${isDarkMode ? 'bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'}`}>
                     <RefreshIcon size={16} />
                     Sincronizar
-                  </button>
-                  <button onClick={() => handleFixOrderStatus(account.id)} className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-colors ${isDarkMode ? 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30' : 'bg-orange-100 text-orange-700 hover:bg-orange-200'}`}>
-                    <RefreshIcon size={16} />
-                    Corrigir Status
                   </button>
                   <button onClick={() => handleEdit(account)} className={`px-4 py-2 rounded-xl transition-colors ${isDarkMode ? 'bg-white/5 text-gray-300 hover:bg-white/10' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>Editar</button>
                   <button onClick={() => handleDelete(account.id)} className={`px-4 py-2 rounded-xl transition-colors ${isDarkMode ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}>Excluir</button>
