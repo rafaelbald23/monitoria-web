@@ -133,6 +133,36 @@ export default function Accounts() {
     }
   };
 
+  const handleFixOldStatus = async () => {
+    if (!confirm('Deseja corrigir pedidos antigos?\n\nEsta ação irá:\n- Atualizar todos os pedidos "Em Digitação" para "Atendido"\n- Aplicar apenas uma vez\n\nContinuar?')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await fetch('/api/bling/fix-old-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        alert(`Correção concluída!\n\n${result.count} pedidos foram atualizados de "Em Digitação" para "Atendido".`);
+      } else {
+        alert('Erro: ' + (result.error || 'Erro ao corrigir status'));
+      }
+    } catch (error) {
+      console.error('Erro ao corrigir status:', error);
+      alert('Erro ao corrigir status dos pedidos');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Layout>
       <div className="p-6">
@@ -152,6 +182,18 @@ export default function Accounts() {
             >
               <RefreshIcon size={18} className={loading ? 'animate-spin' : ''} />
               Limpar Duplicados
+            </button>
+            <button
+              onClick={handleFixOldStatus}
+              disabled={loading}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-colors ${
+                isDarkMode
+                  ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30'
+                  : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+              }`}
+            >
+              <RefreshIcon size={18} className={loading ? 'animate-spin' : ''} />
+              Corrigir Status Antigos
             </button>
             <button onClick={() => { setEditingAccount(null); setFormData({ name: '', clientId: '', clientSecret: '' }); setShowModal(true); }} className="flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-purple-500 text-white px-4 py-2 rounded-xl hover:opacity-90 transition-opacity">
               <PlusIcon size={18} />

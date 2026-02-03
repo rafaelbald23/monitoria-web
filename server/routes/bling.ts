@@ -2204,4 +2204,36 @@ router.post('/orders/:orderId/process', authMiddleware, async (req: AuthRequest,
   }
 });
 
+// 🔧 ENDPOINT ÚNICO PARA CORRIGIR STATUS ANTIGOS (Em Digitação → Atendido)
+router.post('/fix-old-status', async (req, res) => {
+  try {
+    const userId = req.user!.userId;
+
+    console.log(`🔧 Corrigindo status antigos para usuário ${userId}...`);
+
+    // Atualizar todos os pedidos "Em Digitação" para "Atendido"
+    const result = await prisma.blingOrder.updateMany({
+      where: {
+        userId,
+        status: 'Em Digitação',
+      },
+      data: {
+        status: 'Atendido',
+      },
+    });
+
+    console.log(`✅ ${result.count} pedidos atualizados de "Em Digitação" para "Atendido"`);
+
+    res.json({
+      success: true,
+      message: `${result.count} pedidos foram corrigidos`,
+      count: result.count,
+    });
+
+  } catch (error: any) {
+    console.error('❌ Erro ao corrigir status:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 export default router;
