@@ -355,12 +355,13 @@ router.post('/force-sync-order/:accountId/:orderNumber', authMiddleware, async (
     };
 
     let status: string;
-    if (statusTexto && statusTexto.length > 0) {
-      status = statusTexto;
-      console.log(`✅ Status capturado pelo TEXTO: "${status}"`);
-    } else if (statusId !== undefined && statusMap[statusId]) {
+    // PRIORIZAR ID sobre texto (ID é mais confiável)
+    if (statusId !== undefined && statusMap[statusId]) {
       status = statusMap[statusId];
       console.log(`✅ Status mapeado pelo ID ${statusId}: "${status}"`);
+    } else if (statusTexto && statusTexto.length > 0) {
+      status = statusTexto;
+      console.log(`✅ Status capturado pelo TEXTO: "${status}"`);
     } else if (statusId !== undefined) {
       status = `Status ${statusId}`;
       console.log(`⚠️ Status não mapeado, usando ID: "${status}"`);
@@ -374,7 +375,7 @@ router.post('/force-sync-order/:accountId/:orderNumber', authMiddleware, async (
     // Verificar se precisa de baixa automática
     const statusNormalized = status.toLowerCase().trim();
     const statusParaBaixa = [
-      'verificado', 'checado', 'aprovado', 'pronto para envio',
+      'verificado', 'checado', 'atendido', 'aprovado', 'pronto para envio',
       'verified', 'checked', 'approved', 'ready to ship'
     ];
     const needsProcessing = statusParaBaixa.includes(statusNormalized);
@@ -819,7 +820,7 @@ router.post('/force-status-correction/:accountId/:orderNumber', authMiddleware, 
     // Verificar se precisa de baixa automática
     const statusNormalized = correctStatus.toLowerCase().trim();
     const statusParaBaixa = [
-      'verificado', 'checado', 'aprovado', 'pronto para envio',
+      'verificado', 'checado', 'atendido', 'aprovado', 'pronto para envio',
       'verified', 'checked', 'approved', 'ready to ship'
     ];
     const needsProcessing = statusParaBaixa.includes(statusNormalized);
@@ -994,7 +995,7 @@ router.get('/investigate-order/:accountId/:orderNumber', authMiddleware, async (
       }
     }
 
-    // 5. Mapear por ID se não encontrou texto
+    // 5. Mapear por ID (prioridade) ou texto
     const statusMap: Record<number, string> = {
       0: 'Em Aberto', 1: 'Atendido', 2: 'Cancelado', 3: 'Em Andamento', 4: 'Venda Agenciada',
       5: 'Verificado', 6: 'Aguardando', 7: 'Não Entregue', 8: 'Entregue', 9: 'Em Digitação',
@@ -1006,11 +1007,12 @@ router.get('/investigate-order/:accountId/:orderNumber', authMiddleware, async (
       28: 'Aprovado', 29: 'Reprovado', 30: 'Estornado',
     };
 
+    // PRIORIZAR ID sobre texto
     let finalStatus: string;
-    if (statusTexto && statusTexto.length > 0) {
-      finalStatus = statusTexto;
-    } else if (situacao.id !== undefined && statusMap[situacao.id]) {
+    if (situacao.id !== undefined && statusMap[situacao.id]) {
       finalStatus = statusMap[situacao.id];
+    } else if (statusTexto && statusTexto.length > 0) {
+      finalStatus = statusTexto;
     } else if (situacao.id !== undefined) {
       finalStatus = `Status ${situacao.id}`;
     } else {
@@ -1045,7 +1047,7 @@ router.get('/investigate-order/:accountId/:orderNumber', authMiddleware, async (
         comparison: {
           statusMatch: dbOrder?.status === finalStatus,
           needsUpdate: dbOrder?.status !== finalStatus,
-          shouldProcessStock: ['verificado', 'checado', 'aprovado', 'pronto para envio'].includes(finalStatus.toLowerCase()),
+          shouldProcessStock: ['verificado', 'checado', 'atendido', 'aprovado', 'pronto para envio'].includes(finalStatus.toLowerCase()),
         }
       }
     });
@@ -1139,12 +1141,16 @@ router.get('/debug-status/:accountId/:orderNumber', authMiddleware, async (req: 
       28: 'Aprovado', 29: 'Reprovado', 30: 'Estornado',
     };
 
+    // Mapear status final - PRIORIZAR ID sobre texto
     let finalStatus: string;
-    if (statusTexto && statusTexto.length > 0) {
-      finalStatus = statusTexto;
-    } else if (situacao.id !== undefined && statusMap[situacao.id]) {
+    if (situacao.id !== undefined && statusMap[situacao.id]) {
+      // Usar mapeamento por ID (mais confiável)
       finalStatus = statusMap[situacao.id];
+    } else if (statusTexto && statusTexto.length > 0) {
+      // Fallback para texto se ID não estiver mapeado
+      finalStatus = statusTexto;
     } else if (situacao.id !== undefined) {
+      // ID existe mas não está no mapa
       finalStatus = `Status ${situacao.id}`;
     } else {
       finalStatus = 'Aguardando Processamento';
@@ -1153,7 +1159,7 @@ router.get('/debug-status/:accountId/:orderNumber', authMiddleware, async (req: 
     // Verificar se precisa de baixa automática
     const statusNormalized = finalStatus.toLowerCase().trim();
     const statusParaBaixa = [
-      'verificado', 'checado', 'aprovado', 'pronto para envio',
+      'verificado', 'checado', 'atendido', 'aprovado', 'pronto para envio',
       'verified', 'checked', 'approved', 'ready to ship'
     ];
     const needsProcessing = statusParaBaixa.includes(statusNormalized);
@@ -1596,18 +1602,18 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
         console.log(`   - statusId: ${statusId}`);
         console.log(`   - statusTexto encontrado: "${statusTexto}" (${foundField})`);
         
-        // ESTRATÉGIA DE MAPEAMENTO MELHORADA
+        // ESTRATÉGIA DE MAPEAMENTO MELHORADA - PRIORIZAR ID
         let status: string;
         
-        // 1. PRIORIDADE: Usar texto encontrado (mais confiável que ID)
-        if (statusTexto && statusTexto.length > 0) {
-          status = statusTexto;
-          console.log(`✅ Status capturado pelo TEXTO: "${status}"`);
-        }
-        // 2. FALLBACK: Usar mapeamento por ID se disponível
-        else if (statusId !== undefined && statusMap[statusId]) {
+        // 1. PRIORIDADE: Usar mapeamento por ID (mais confiável)
+        if (statusId !== undefined && statusMap[statusId]) {
           status = statusMap[statusId];
           console.log(`✅ Status mapeado pelo ID ${statusId}: "${status}"`);
+        }
+        // 2. FALLBACK: Usar texto encontrado
+        else if (statusTexto && statusTexto.length > 0) {
+          status = statusTexto;
+          console.log(`✅ Status capturado pelo TEXTO: "${status}"`);
         }
         // 3. FALLBACK: ID não mapeado
         else if (statusId !== undefined) {

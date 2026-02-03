@@ -220,13 +220,14 @@ async function syncAccountOrders(account: any): Promise<{ success: boolean; proc
           console.log(`   - statusId: ${statusId}`);
           console.log(`   - statusTexto: "${statusTexto}" (${foundField})`);
           
+          // PRIORIZAR ID sobre texto
           let status: string;
-          if (statusTexto && statusTexto.length > 0) {
-            status = statusTexto;
-            console.log(`✅ [AUTO-SYNC] Status pelo TEXTO: "${status}"`);
-          } else if (statusId !== undefined && statusMap[statusId]) {
+          if (statusId !== undefined && statusMap[statusId]) {
             status = statusMap[statusId];
             console.log(`✅ [AUTO-SYNC] Status pelo ID ${statusId}: "${status}"`);
+          } else if (statusTexto && statusTexto.length > 0) {
+            status = statusTexto;
+            console.log(`✅ [AUTO-SYNC] Status pelo TEXTO: "${status}"`);
           } else if (statusId !== undefined) {
             status = `Status ${statusId}`;
             console.log(`⚠️ [AUTO-SYNC] Status não mapeado: "${status}"`);
@@ -287,7 +288,7 @@ async function syncAccountOrders(account: any): Promise<{ success: boolean; proc
           // 🚀 BAIXA AUTOMÁTICA com verificação melhorada
           const statusNormalized = status.toLowerCase().trim();
           const statusParaBaixa = [
-            'verificado', 'checado', 'aprovado', 'pronto para envio',
+            'verificado', 'checado', 'atendido', 'aprovado', 'pronto para envio',
             'verified', 'checked', 'approved', 'ready to ship'
           ];
           const needsProcessing = statusParaBaixa.includes(statusNormalized);
