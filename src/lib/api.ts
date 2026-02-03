@@ -259,6 +259,12 @@ export const api = {
     request(`/backup/client/${clientId}`, {
       method: 'POST',
     }),
+  
+  // Corrigir status antigos
+  fixOldStatus: () =>
+    request('/bling/fix-old-status', {
+      method: 'POST',
+    }),
 };
 
 export default api;

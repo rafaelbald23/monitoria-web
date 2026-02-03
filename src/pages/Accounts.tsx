@@ -134,24 +134,16 @@ export default function Accounts() {
   };
 
   const handleFixOldStatus = async () => {
-    if (!confirm('Deseja corrigir pedidos antigos?\n\nEsta ação irá:\n- Atualizar todos os pedidos "Em Digitação" para "Atendido"\n- Aplicar apenas uma vez\n\nContinuar?')) {
+    if (!confirm('Deseja corrigir pedidos antigos?\n\nEsta ação irá:\n- Atualizar todos os pedidos "Em Digitação" para "Atendido"\n- Atualizar todos os pedidos "Status XXXXX" para "Despachado"\n\nContinuar?')) {
       return;
     }
 
     try {
       setLoading(true);
-      const response = await fetch('/api/bling/fix-old-status', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-
-      const result = await response.json();
+      const result = await api.fixOldStatus();
       
       if (result.success) {
-        alert(`Correção concluída!\n\n${result.count} pedidos foram atualizados de "Em Digitação" para "Atendido".`);
+        alert(`Correção concluída!\n\n${result.count} pedidos foram atualizados.\n\nDetalhes:\n- Em Digitação → Atendido: ${result.details?.emDigitacao || 0}\n- Status não mapeado → Despachado: ${result.details?.statusNaoMapeado || 0}`);
       } else {
         alert('Erro: ' + (result.error || 'Erro ao corrigir status'));
       }
