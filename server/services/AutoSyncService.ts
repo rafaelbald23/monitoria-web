@@ -159,6 +159,7 @@ async function syncAccountOrders(account: any): Promise<{ success: boolean; proc
       24: 'Verificado', // CORREÇÃO: Era "Reagendado", agora é "Verificado"
       25: 'Bloqueado', 26: 'Suspenso', 27: 'Processando',
       28: 'Aprovado', 29: 'Reprovado', 30: 'Estornado',
+      598239: 'Despachado', // ID customizado do cliente
     };
 
     // Processar pedidos
@@ -288,7 +289,7 @@ async function syncAccountOrders(account: any): Promise<{ success: boolean; proc
           // 🚀 BAIXA AUTOMÁTICA com verificação melhorada
           const statusNormalized = status.toLowerCase().trim();
           const statusParaBaixa = [
-            'verificado', 'checado', 'atendido', 'aprovado', 'pronto para envio',
+            'verificado', 'checado', 'atendido', 'despachado', 'aprovado', 'pronto para envio',
             'verified', 'checked', 'approved', 'ready to ship'
           ];
           const needsProcessing = statusParaBaixa.includes(statusNormalized);

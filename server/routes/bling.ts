@@ -352,6 +352,7 @@ router.post('/force-sync-order/:accountId/:orderNumber', authMiddleware, async (
       24: 'Verificado', // CORREÇÃO: Era "Reagendado", agora é "Verificado"
       25: 'Bloqueado', 26: 'Suspenso', 27: 'Processando',
       28: 'Aprovado', 29: 'Reprovado', 30: 'Estornado',
+      598239: 'Despachado', // ID customizado do cliente
     };
 
     let status: string;
@@ -375,7 +376,7 @@ router.post('/force-sync-order/:accountId/:orderNumber', authMiddleware, async (
     // Verificar se precisa de baixa automática
     const statusNormalized = status.toLowerCase().trim();
     const statusParaBaixa = [
-      'verificado', 'checado', 'atendido', 'aprovado', 'pronto para envio',
+      'verificado', 'checado', 'atendido', 'despachado', 'aprovado', 'pronto para envio',
       'verified', 'checked', 'approved', 'ready to ship'
     ];
     const needsProcessing = statusParaBaixa.includes(statusNormalized);
@@ -820,7 +821,7 @@ router.post('/force-status-correction/:accountId/:orderNumber', authMiddleware, 
     // Verificar se precisa de baixa automática
     const statusNormalized = correctStatus.toLowerCase().trim();
     const statusParaBaixa = [
-      'verificado', 'checado', 'atendido', 'aprovado', 'pronto para envio',
+      'verificado', 'checado', 'atendido', 'despachado', 'aprovado', 'pronto para envio',
       'verified', 'checked', 'approved', 'ready to ship'
     ];
     const needsProcessing = statusParaBaixa.includes(statusNormalized);
@@ -1005,6 +1006,7 @@ router.get('/investigate-order/:accountId/:orderNumber', authMiddleware, async (
       24: 'Verificado', // CORREÇÃO: Era "Reagendado", agora é "Verificado"
       25: 'Bloqueado', 26: 'Suspenso', 27: 'Processando',
       28: 'Aprovado', 29: 'Reprovado', 30: 'Estornado',
+      598239: 'Despachado', // ID customizado do cliente
     };
 
     // PRIORIZAR ID sobre texto
@@ -1047,7 +1049,7 @@ router.get('/investigate-order/:accountId/:orderNumber', authMiddleware, async (
         comparison: {
           statusMatch: dbOrder?.status === finalStatus,
           needsUpdate: dbOrder?.status !== finalStatus,
-          shouldProcessStock: ['verificado', 'checado', 'atendido', 'aprovado', 'pronto para envio'].includes(finalStatus.toLowerCase()),
+          shouldProcessStock: ['verificado', 'checado', 'atendido', 'despachado', 'aprovado', 'pronto para envio'].includes(finalStatus.toLowerCase()),
         }
       }
     });
@@ -1139,6 +1141,7 @@ router.get('/debug-status/:accountId/:orderNumber', authMiddleware, async (req: 
       24: 'Verificado', // CORREÇÃO: Era "Reagendado", agora é "Verificado"
       25: 'Bloqueado', 26: 'Suspenso', 27: 'Processando',
       28: 'Aprovado', 29: 'Reprovado', 30: 'Estornado',
+      598239: 'Despachado', // ID customizado do cliente
     };
 
     // Mapear status final - PRIORIZAR ID sobre texto
@@ -1159,7 +1162,7 @@ router.get('/debug-status/:accountId/:orderNumber', authMiddleware, async (req: 
     // Verificar se precisa de baixa automática
     const statusNormalized = finalStatus.toLowerCase().trim();
     const statusParaBaixa = [
-      'verificado', 'checado', 'atendido', 'aprovado', 'pronto para envio',
+      'verificado', 'checado', 'atendido', 'despachado', 'aprovado', 'pronto para envio',
       'verified', 'checked', 'approved', 'ready to ship'
     ];
     const needsProcessing = statusParaBaixa.includes(statusNormalized);
@@ -1537,6 +1540,7 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
       28: 'Aprovado',
       29: 'Reprovado',
       30: 'Estornado',
+      598239: 'Despachado', // ID customizado do cliente
     };
 
     // Salvar/atualizar pedidos no banco e processar automaticamente se necessário
@@ -2204,15 +2208,15 @@ router.post('/orders/:orderId/process', authMiddleware, async (req: AuthRequest,
   }
 });
 
-// 🔧 ENDPOINT ÚNICO PARA CORRIGIR STATUS ANTIGOS (Em Digitação → Atendido)
-router.post('/fix-old-status', async (req: AuthRequest, res: Response) => {
+// 🔧 ENDPOINT ÚNICO PARA CORRIGIR STATUS ANTIGOS
+router.post('/fix-old-status', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.userId;
 
     console.log(`🔧 Corrigindo status antigos para usuário ${userId}...`);
 
-    // Atualizar todos os pedidos "Em Digitação" para "Atendido"
-    const result = await prisma.blingOrder.updateMany({
+    // Atualizar "Em Digitação" → "Atendido"
+    const result1 = await prisma.blingOrder.updateMany({
       where: {
         userId,
         status: 'Em Digitação',
@@ -2222,12 +2226,41 @@ router.post('/fix-old-status', async (req: AuthRequest, res: Response) => {
       },
     });
 
-    console.log(`✅ ${result.count} pedidos atualizados de "Em Digitação" para "Atendido"`);
+    // Buscar todos os pedidos com status no formato "Status XXXXX"
+    const ordersWithStatusId = await prisma.blingOrder.findMany({
+      where: {
+        userId,
+        status: {
+          startsWith: 'Status ',
+        },
+      },
+    });
+
+    console.log(`📋 Encontrados ${ordersWithStatusId.length} pedidos com status não mapeado`);
+
+    // Atualizar cada um para "Despachado" (assumindo que IDs customizados = Despachado)
+    let result2Count = 0;
+    for (const order of ordersWithStatusId) {
+      await prisma.blingOrder.update({
+        where: { id: order.id },
+        data: { status: 'Despachado' },
+      });
+      result2Count++;
+      console.log(`  ✅ Pedido #${order.orderNumber}: "${order.status}" → "Despachado"`);
+    }
+
+    const totalCount = result1.count + result2Count;
+    console.log(`✅ ${result1.count} pedidos: "Em Digitação" → "Atendido"`);
+    console.log(`✅ ${result2Count} pedidos: "Status XXXXX" → "Despachado"`);
 
     res.json({
       success: true,
-      message: `${result.count} pedidos foram corrigidos`,
-      count: result.count,
+      message: `${totalCount} pedidos foram corrigidos`,
+      count: totalCount,
+      details: {
+        emDigitacao: result1.count,
+        statusNaoMapeado: result2Count,
+      },
     });
 
   } catch (error: any) {
