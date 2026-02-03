@@ -60,6 +60,35 @@ async function fetchOrderDetails(orderId: string, accessToken: string): Promise<
   return null;
 }
 
+// Função para buscar componentes de um kit na API do Bling
+async function fetchKitComponents(productId: string, accessToken: string): Promise<any[]> {
+  try {
+    console.log(`🎁 [AUTO-SYNC] Buscando componentes do kit (produto ID: ${productId})...`);
+    const response = await axios.get(`${BLING_API_URL}/produtos/${productId}`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+      timeout: 15000,
+    });
+    
+    const productData = response.data?.data;
+    
+    // Verificar se é um kit (tipoEstoque = 'F' de Fabricado/Kit)
+    if (productData?.estrutura?.tipoEstoque === 'F' && productData?.estrutura?.componentes) {
+      const componentes = productData.estrutura.componentes;
+      console.log(`✅ [AUTO-SYNC] Kit detectado com ${componentes.length} componentes`);
+      return componentes;
+    }
+    
+    console.log(`ℹ️ [AUTO-SYNC] Produto não é um kit ou não tem componentes`);
+    return [];
+  } catch (error: any) {
+    console.log(`⚠️ [AUTO-SYNC] Erro ao buscar componentes do kit: ${error.message}`);
+    return [];
+  }
+}
+
 // Sincronizar pedidos de uma conta específica
 async function syncAccountOrders(account: any): Promise<{ success: boolean; processed: number; error?: string }> {
   try {
@@ -271,31 +300,92 @@ async function syncAccountOrders(account: any): Promise<{ success: boolean; proc
 
             for (const item of items) {
               const sku = item.codigo || item.produto?.codigo;
+              const nome = item.nome || item.produto?.nome;
               const quantidade = item.quantidade || 1;
+              const blingProductId = item.produto?.id;
               
-              if (!sku) continue;
-
-              // Buscar produto pelo SKU
-              const product = await tx.product.findUnique({
-                where: { sku },
-              });
-
-              if (product) {
-                console.log(`📦 [AUTO-SYNC] Dando baixa: ${quantidade}x ${product.name} (SKU: ${sku})`);
+              // 🎁 VERIFICAR SE É KIT - Buscar componentes na API do Bling
+              let isKit = false;
+              let kitComponents: any[] = [];
+              
+              if (blingProductId) {
+                kitComponents = await fetchKitComponents(String(blingProductId), accessToken);
+                isKit = kitComponents.length > 0;
                 
-                // Criar movimento de saída
-                await tx.movement.create({
-                  data: {
-                    type: 'EXIT',
-                    productId: product.id,
-                    quantity: quantidade,
-                    reason: `Baixa automática - Pedido Bling #${orderToUse.numero} (${status})`,
-                    userId: account.userId,
-                    syncStatus: 'synced',
-                  },
+                if (isKit) {
+                  console.log(`🎁 [AUTO-SYNC] KIT DETECTADO: "${nome}" com ${kitComponents.length} componentes`);
+                }
+              }
+
+              // Se for kit, processar componentes individualmente
+              if (isKit && kitComponents.length > 0) {
+                console.log(`🎁 [AUTO-SYNC] Processando componentes do kit "${nome}"...`);
+                
+                for (const componente of kitComponents) {
+                  const compSku = componente.produto?.codigo;
+                  const compNome = componente.produto?.nome;
+                  const compQtd = (componente.quantidade || 1) * quantidade;
+                  
+                  console.log(`  📦 [AUTO-SYNC] Componente: SKU="${compSku}", Nome="${compNome}", Qtd=${compQtd}`);
+                  
+                  if (!compSku) continue;
+                  
+                  const compProduct = await tx.product.findFirst({
+                    where: {
+                      OR: [
+                        { sku: compSku },
+                        { internalCode: compSku }
+                      ]
+                    }
+                  });
+                  
+                  if (compProduct) {
+                    console.log(`  ✅ [AUTO-SYNC] Componente encontrado: ${compProduct.name}`);
+                    console.log(`  📦 [AUTO-SYNC] DANDO BAIXA: ${compQtd}x ${compProduct.name}`);
+                    
+                    await tx.movement.create({
+                      data: {
+                        type: 'EXIT',
+                        productId: compProduct.id,
+                        quantity: compQtd,
+                        reason: `Baixa automática (Kit: ${nome}) - Pedido #${orderToUse.numero}`,
+                        userId: account.userId,
+                        syncStatus: 'synced',
+                      },
+                    });
+                    
+                    produtosProcessados++;
+                  } else {
+                    console.log(`  ⚠️ [AUTO-SYNC] Componente não encontrado: SKU="${compSku}"`);
+                  }
+                }
+                
+                console.log(`✅ [AUTO-SYNC] Kit "${nome}" processado`);
+                
+              } else {
+                // NÃO É KIT - Processar normalmente
+                if (!sku) continue;
+
+                const product = await tx.product.findUnique({
+                  where: { sku },
                 });
-                
-                produtosProcessados++;
+
+                if (product) {
+                  console.log(`📦 [AUTO-SYNC] Dando baixa: ${quantidade}x ${product.name} (SKU: ${sku})`);
+                  
+                  await tx.movement.create({
+                    data: {
+                      type: 'EXIT',
+                      productId: product.id,
+                      quantity: quantidade,
+                      reason: `Baixa automática - Pedido Bling #${orderToUse.numero} (${status})`,
+                      userId: account.userId,
+                      syncStatus: 'synced',
+                    },
+                  });
+                  
+                  produtosProcessados++;
+                }
               }
             }
 

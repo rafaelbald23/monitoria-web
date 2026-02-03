@@ -33,6 +33,37 @@ async function fetchOrderDetails(orderId: string, accessToken: string): Promise<
   return null;
 }
 
+// Função auxiliar para buscar componentes de um kit na API do Bling
+async function fetchKitComponents(productId: string, accessToken: string): Promise<any[]> {
+  const BLING_API_URL = 'https://www.bling.com.br/Api/v3';
+  
+  try {
+    console.log(`🎁 Buscando componentes do kit (produto ID: ${productId})...`);
+    const response = await axios.get(`${BLING_API_URL}/produtos/${productId}`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+      timeout: 15000,
+    });
+    
+    const productData = response.data?.data;
+    
+    // Verificar se é um kit (tipoEstoque = 'F' de Fabricado/Kit)
+    if (productData?.estrutura?.tipoEstoque === 'F' && productData?.estrutura?.componentes) {
+      const componentes = productData.estrutura.componentes;
+      console.log(`✅ Kit detectado com ${componentes.length} componentes`);
+      return componentes;
+    }
+    
+    console.log(`ℹ️ Produto não é um kit ou não tem componentes`);
+    return [];
+  } catch (error: any) {
+    console.log(`⚠️ Erro ao buscar componentes do kit: ${error.message}`);
+    return [];
+  }
+}
+
 // Detecta automaticamente a URL base
 function getRedirectUri(req: Request): string {
   // Prioridade: variável de ambiente > headers > fallback
@@ -1702,85 +1733,160 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
                 const nome = item.nome || item.produto?.nome;
                 const ean = item.ean || item.produto?.ean;
                 const quantidade = item.quantidade || 1;
+                const blingProductId = item.produto?.id; // ID do produto no Bling
                 
                 console.log(`📦 Processando item: SKU="${sku}", Nome="${nome}", EAN="${ean}", Qtd=${quantidade}`);
 
-                let product: any = null;
-
-                // 1. Buscar por SKU exato
-                if (sku) {
-                  product = await tx.product.findFirst({
-                    where: {
-                      OR: [
-                        { sku: sku },
-                        { internalCode: sku }
-                      ]
-                    }
-                  });
-                  if (product) {
-                    console.log(`✅ Produto encontrado por SKU: ${product.name}`);
-                  }
-                }
-
-                // 2. Buscar por EAN se não encontrou por SKU
-                if (!product && ean) {
-                  product = await tx.product.findFirst({
-                    where: { ean: ean }
-                  });
-                  if (product) {
-                    console.log(`✅ Produto encontrado por EAN: ${product.name}`);
-                  }
-                }
-
-                // 3. Buscar por nome se não encontrou por SKU/EAN
-                if (!product && nome) {
-                  const nomeNormalizado = nome.toLowerCase().trim();
+                // 🎁 VERIFICAR SE É KIT - Buscar componentes na API do Bling
+                let isKit = false;
+                let kitComponents: any[] = [];
+                
+                if (blingProductId) {
+                  kitComponents = await fetchKitComponents(String(blingProductId), accessToken);
+                  isKit = kitComponents.length > 0;
                   
-                  // Busca exata por nome
-                  product = await tx.product.findFirst({
-                    where: {
-                      name: {
-                        contains: nome
-                      }
-                    }
-                  });
+                  if (isKit) {
+                    console.log(`🎁 KIT DETECTADO: "${nome}" com ${kitComponents.length} componentes`);
+                  }
+                }
 
-                  // Se não encontrou, busca por similaridade
-                  if (!product) {
-                    const allProducts = await tx.product.findMany({
-                      select: { id: true, name: true, sku: true }
+                // Se for kit, processar componentes individualmente
+                if (isKit && kitComponents.length > 0) {
+                  console.log(`🎁 Processando componentes do kit "${nome}"...`);
+                  
+                  for (const componente of kitComponents) {
+                    const compSku = componente.produto?.codigo;
+                    const compNome = componente.produto?.nome;
+                    const compQtd = (componente.quantidade || 1) * quantidade; // Qtd do componente * qtd do kit
+                    
+                    console.log(`  📦 Componente: SKU="${compSku}", Nome="${compNome}", Qtd=${compQtd}`);
+                    
+                    // Buscar componente no estoque
+                    let compProduct: any = null;
+                    
+                    if (compSku) {
+                      compProduct = await tx.product.findFirst({
+                        where: {
+                          OR: [
+                            { sku: compSku },
+                            { internalCode: compSku }
+                          ]
+                        }
+                      });
+                    }
+                    
+                    if (!compProduct && compNome) {
+                      compProduct = await tx.product.findFirst({
+                        where: {
+                          name: {
+                            contains: compNome
+                          }
+                        }
+                      });
+                    }
+                    
+                    if (compProduct) {
+                      console.log(`  ✅ Componente encontrado: ${compProduct.name}`);
+                      console.log(`  📦 DANDO BAIXA: ${compQtd}x ${compProduct.name} (SKU: ${compProduct.sku})`);
+                      
+                      await tx.movement.create({
+                        data: {
+                          type: 'EXIT',
+                          productId: compProduct.id,
+                          quantity: compQtd,
+                          reason: `Baixa automática (Kit: ${nome}) - Pedido #${orderData.orderNumber}`,
+                          userId,
+                          syncStatus: 'synced',
+                        },
+                      });
+                      
+                      produtosProcessados++;
+                    } else {
+                      console.log(`  ⚠️ Componente não encontrado no estoque: SKU="${compSku}", Nome="${compNome}"`);
+                    }
+                  }
+                  
+                  console.log(`✅ Kit "${nome}" processado com sucesso`);
+                  
+                } else {
+                  // NÃO É KIT - Processar normalmente
+                  let product: any = null;
+
+                  // 1. Buscar por SKU exato
+                  if (sku) {
+                    product = await tx.product.findFirst({
+                      where: {
+                        OR: [
+                          { sku: sku },
+                          { internalCode: sku }
+                        ]
+                      }
+                    });
+                    if (product) {
+                      console.log(`✅ Produto encontrado por SKU: ${product.name}`);
+                    }
+                  }
+
+                  // 2. Buscar por EAN se não encontrou por SKU
+                  if (!product && ean) {
+                    product = await tx.product.findFirst({
+                      where: { ean: ean }
+                    });
+                    if (product) {
+                      console.log(`✅ Produto encontrado por EAN: ${product.name}`);
+                    }
+                  }
+
+                  // 3. Buscar por nome se não encontrou por SKU/EAN
+                  if (!product && nome) {
+                    const nomeNormalizado = nome.toLowerCase().trim();
+                    
+                    // Busca exata por nome
+                    product = await tx.product.findFirst({
+                      where: {
+                        name: {
+                          contains: nome
+                        }
+                      }
+                    });
+
+                    // Se não encontrou, busca por similaridade
+                    if (!product) {
+                      const allProducts = await tx.product.findMany({
+                        select: { id: true, name: true, sku: true }
+                      });
+                      
+                      product = allProducts.find(p => {
+                        const productName = p.name.toLowerCase().trim();
+                        return productName.includes(nomeNormalizado) || 
+                               nomeNormalizado.includes(productName);
+                      });
+                    }
+
+                    if (product) {
+                      console.log(`✅ Produto encontrado por nome: ${product.name}`);
+                    }
+                  }
+
+                  if (product) {
+                    console.log(`📦 DANDO BAIXA AUTOMÁTICA: ${quantidade}x ${product.name} (SKU: ${product.sku})`);
+                    
+                    // Criar movimento de saída
+                    await tx.movement.create({
+                      data: {
+                        type: 'EXIT',
+                        productId: product.id,
+                        quantity: quantidade,
+                        reason: `Baixa automática - Pedido Bling #${orderData.orderNumber} (${orderData.status})`,
+                        userId,
+                        syncStatus: 'synced',
+                      },
                     });
                     
-                    product = allProducts.find(p => {
-                      const productName = p.name.toLowerCase().trim();
-                      return productName.includes(nomeNormalizado) || 
-                             nomeNormalizado.includes(productName);
-                    });
+                    produtosProcessados++;
+                  } else {
+                    console.log(`⚠️ Produto não encontrado no estoque - SKU: "${sku}", Nome: "${nome}", EAN: "${ean}"`);
                   }
-
-                  if (product) {
-                    console.log(`✅ Produto encontrado por nome: ${product.name}`);
-                  }
-                }
-
-                if (product) {
-                  console.log(`📦 DANDO BAIXA AUTOMÁTICA: ${quantidade}x ${product.name} (SKU: ${product.sku})`);
-                  
-                  // Criar movimento de saída
-                  await tx.movement.create({
-                    data: {
-                      type: 'EXIT',
-                      productId: product.id,
-                      quantity: quantidade,
-                      reason: `Baixa automática - Pedido Bling #${orderData.orderNumber} (${orderData.status})`,
-                      userId,
-                      syncStatus: 'synced',
-                    },
-                  });
-                  
-                  produtosProcessados++;
-                } else {
-                  console.log(`⚠️ Produto não encontrado no estoque - SKU: "${sku}", Nome: "${nome}", EAN: "${ean}"`);
                 }
               }
 
