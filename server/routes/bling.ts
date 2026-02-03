@@ -2205,7 +2205,7 @@ router.post('/orders/:orderId/process', authMiddleware, async (req: AuthRequest,
 });
 
 // 🔧 ENDPOINT ÚNICO PARA CORRIGIR STATUS ANTIGOS (Em Digitação → Atendido)
-router.post('/fix-old-status', async (req, res) => {
+router.post('/fix-old-status', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.userId;
 
