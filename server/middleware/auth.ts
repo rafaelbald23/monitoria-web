@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import prisma from '../lib/prisma.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'monitoria-jwt-secret-2024-web';
 
@@ -45,4 +46,16 @@ export function requireRole(...roles: string[]) {
 
     next();
   };
+}
+
+// Helper para obter o ID do owner (dono da conta)
+// Se o usuário for funcionário, retorna o ownerId
+// Se for o próprio dono, retorna o userId
+export async function getOwnerUserId(userId: string): Promise<string> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { ownerId: true },
+  });
+  
+  return user?.ownerId || userId;
 }

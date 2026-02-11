@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import prisma from '../lib/prisma.js';
-import { authMiddleware, AuthRequest } from '../middleware/auth.js';
+import { authMiddleware, AuthRequest, getOwnerUserId } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -8,9 +8,10 @@ const router = Router();
 router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.userId;
+    const ownerUserId = await getOwnerUserId(userId);
 
     const sales = await prisma.sale.findMany({
-      where: { userId },
+      where: { userId: ownerUserId },
       include: {
         account: {
           select: { name: true },
@@ -51,6 +52,7 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const { items, totalAmount, accountId } = req.body;
     const userId = req.user!.userId;
+    const ownerUserId = await getOwnerUserId(userId);
 
     // Generate sale number
     const lastSale = await prisma.sale.findFirst({
@@ -68,7 +70,7 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
     const sale = await prisma.sale.create({
       data: {
         saleNumber,
-        userId,
+        userId: ownerUserId,
         accountId: accountId || null,
         totalAmount,
         finalAmount: totalAmount,
@@ -95,7 +97,7 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
           productId: item.productId,
           quantity: item.quantity,
           reason: `Venda ${saleNumber}`,
-          userId,
+          userId: ownerUserId,
           saleId: sale.id,
           syncStatus: 'pending',
         },
@@ -114,9 +116,10 @@ router.get('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const userId = req.user!.userId;
+    const ownerUserId = await getOwnerUserId(userId);
 
     const sale = await prisma.sale.findFirst({
-      where: { id, userId },
+      where: { id, userId: ownerUserId },
       include: {
         items: {
           include: {

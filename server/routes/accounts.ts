@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import axios from 'axios';
 import prisma from '../lib/prisma.js';
-import { authMiddleware, AuthRequest } from '../middleware/auth.js';
+import { authMiddleware, AuthRequest, getOwnerUserId } from '../middleware/auth.js';
 
 const router = Router();
 const BLING_API_URL = 'https://www.bling.com.br/Api/v3';
@@ -10,9 +10,10 @@ const BLING_API_URL = 'https://www.bling.com.br/Api/v3';
 router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.userId;
+    const ownerUserId = await getOwnerUserId(userId);
 
     const accounts = await prisma.blingAccount.findMany({
-      where: { userId },
+      where: { userId: ownerUserId },
       orderBy: { name: 'asc' },
     });
 
@@ -36,11 +37,12 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const { name, clientId, clientSecret } = req.body;
     const userId = req.user!.userId;
+    const ownerUserId = await getOwnerUserId(userId);
 
     const account = await prisma.blingAccount.create({
       data: {
         name,
-        userId,
+        userId: ownerUserId,
         clientId: clientId || '',
         clientSecret: clientSecret || '',
         isActive: true,
@@ -60,10 +62,11 @@ router.put('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const { name, clientId, clientSecret } = req.body;
     const userId = req.user!.userId;
+    const ownerUserId = await getOwnerUserId(userId);
 
     // Verificar se a conta pertence ao usuário
     const account = await prisma.blingAccount.findFirst({
-      where: { id, userId },
+      where: { id, userId: ownerUserId },
     });
 
     if (!account) {
@@ -91,10 +94,11 @@ router.delete('/:id', authMiddleware, async (req: AuthRequest, res: Response) =>
   try {
     const { id } = req.params;
     const userId = req.user!.userId;
+    const ownerUserId = await getOwnerUserId(userId);
 
     // Verificar se a conta pertence ao usuário
     const account = await prisma.blingAccount.findFirst({
-      where: { id, userId },
+      where: { id, userId: ownerUserId },
     });
 
     if (!account) {

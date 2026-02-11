@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma.js';
-import { authMiddleware, AuthRequest } from '../middleware/auth.js';
+import { authMiddleware, AuthRequest, getOwnerUserId } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -9,6 +9,7 @@ const router = Router();
 router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.userId;
+    const ownerUserId = await getOwnerUserId(userId);
 
     // Buscar produtos que pertencem ao usuário através do mapeamento com contas Bling
     const products = await prisma.product.findMany({
@@ -17,19 +18,19 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
         mappings: {
           some: {
             account: {
-              userId: userId,
+              userId: ownerUserId,
             },
           },
         },
       },
       include: {
         movements: {
-          where: { userId: userId },
+          where: { userId: ownerUserId },
         },
         mappings: {
           where: {
             account: {
-              userId: userId,
+              userId: ownerUserId,
             },
           },
           include: {
@@ -42,7 +43,7 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
       orderBy: { name: 'asc' },
     });
 
-    console.log(`📊 Produtos encontrados para usuário ${userId}: ${products.length}`);
+    console.log(`📊 Produtos encontrados para usuário ${ownerUserId}: ${products.length}`);
     
     const result = products.map((p: any) => {
       const stock = p.movements.reduce((sum: number, m: any) => {
@@ -75,6 +76,7 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
 router.get('/search', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.userId;
+    const ownerUserId = await getOwnerUserId(userId);
     const { code } = req.query;
 
     if (!code) {
@@ -92,19 +94,19 @@ router.get('/search', authMiddleware, async (req: AuthRequest, res: Response) =>
         mappings: {
           some: {
             account: {
-              userId: userId,
+              userId: ownerUserId,
             },
           },
         },
       },
       include: {
         movements: {
-          where: { userId: userId },
+          where: { userId: ownerUserId },
         },
         mappings: {
           where: {
             account: {
-              userId: userId,
+              userId: ownerUserId,
             },
           },
           include: {
@@ -145,6 +147,7 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const { sku, ean, name, price, stock, accountId } = req.body;
     const userId = req.user!.userId;
+    const ownerUserId = await getOwnerUserId(userId);
 
     const product = await prisma.product.create({
       data: {
@@ -164,7 +167,7 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
           productId: product.id,
           quantity: stock,
           reason: 'Estoque inicial',
-          userId,
+          userId: ownerUserId,
           syncStatus: 'pending',
         },
       });
@@ -199,6 +202,7 @@ router.put('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const { sku, ean, name, price, stock } = req.body;
     const userId = req.user!.userId;
+    const ownerUserId = await getOwnerUserId(userId);
 
     // Verificar se o produto pertence ao usuário
     const product = await prisma.product.findFirst({
@@ -207,7 +211,7 @@ router.put('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
         mappings: {
           some: {
             account: {
-              userId: userId,
+              userId: ownerUserId,
             },
           },
         },
@@ -231,7 +235,7 @@ router.put('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
     // Adjust stock if changed
     if (stock !== undefined) {
       const movements = await prisma.movement.findMany({
-        where: { productId: id, userId },
+        where: { productId: id, userId: ownerUserId },
       });
 
       const currentStock = movements.reduce((sum: number, m: any) => {
@@ -246,7 +250,7 @@ router.put('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
             productId: id,
             quantity: Math.abs(diff),
             reason: 'Ajuste de estoque',
-            userId,
+            userId: ownerUserId,
             syncStatus: 'pending',
           },
         });
@@ -265,6 +269,7 @@ router.delete('/:id', authMiddleware, async (req: AuthRequest, res: Response) =>
   try {
     const { id } = req.params;
     const userId = req.user!.userId;
+    const ownerUserId = await getOwnerUserId(userId);
 
     // Verificar se o produto pertence ao usuário
     const product = await prisma.product.findFirst({
@@ -273,7 +278,7 @@ router.delete('/:id', authMiddleware, async (req: AuthRequest, res: Response) =>
         mappings: {
           some: {
             account: {
-              userId: userId,
+              userId: ownerUserId,
             },
           },
         },
@@ -300,72 +305,26 @@ router.delete('/:id', authMiddleware, async (req: AuthRequest, res: Response) =>
 router.post('/zero-all-stock', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.userId;
+    const ownerUserId = await getOwnerUserId(userId);
     const { ownerPassword } = req.body;
 
-    console.log(`Iniciando processo de zerar todo estoque para usuário: ${userId}`);
+    console.log(`Iniciando processo de zerar todo estoque para usuário: ${ownerUserId}`);
     console.log(`Senha fornecida: ${ownerPassword ? '[FORNECIDA]' : '[NÃO FORNECIDA]'}`);
 
-    // Buscar informações do usuário atual
-    const currentUser = await prisma.user.findUnique({
-      where: { id: userId },
+    // Buscar informações do usuário dono
+    const ownerUser = await prisma.user.findUnique({
+      where: { id: ownerUserId },
       select: {
         id: true,
         username: true,
-        isOwner: true,
-        ownerId: true,
-        owner: {
-          select: {
-            id: true,
-            username: true,
-            name: true,
-            password: true,
-          },
-        },
+        name: true,
+        password: true,
       },
     });
 
-    if (!currentUser) {
-      console.log(`Usuário não encontrado: ${userId}`);
-      return res.status(404).json({ error: 'Usuário não encontrado' });
-    }
-
-    console.log(`Dados do usuário atual:`, {
-      id: currentUser.id,
-      username: currentUser.username,
-      isOwner: currentUser.isOwner,
-      ownerId: currentUser.ownerId,
-      hasOwner: !!currentUser.owner
-    });
-
-    // Determinar qual é o dono da conta e validar senha
-    let ownerUser: any;
-    
-    if (currentUser.isOwner) {
-      // Se o usuário atual é o dono, buscar sua própria senha
-      const owner = await prisma.user.findUnique({
-        where: { id: currentUser.id },
-        select: { id: true, username: true, name: true, password: true },
-      });
-      ownerUser = owner;
-      console.log(`Usuário atual é o dono: ${owner?.username}`);
-    } else if (currentUser.owner) {
-      // Se o usuário atual é funcionário, usar dados do dono
-      ownerUser = currentUser.owner;
-      console.log(`Usuário é funcionário, dono: ${ownerUser.username}`);
-    } else {
-      // Caso especial: usuário sem estrutura de dono definida
-      // Pode ser usuário antigo ou master, tratá-lo como dono
-      console.log(`Usuário sem estrutura de dono, tratando como dono: ${currentUser.username}`);
-      const owner = await prisma.user.findUnique({
-        where: { id: currentUser.id },
-        select: { id: true, username: true, name: true, password: true },
-      });
-      ownerUser = owner;
-    }
-
     if (!ownerUser) {
-      console.log(`Dados do dono não encontrados`);
-      return res.status(400).json({ error: 'Dados do dono da conta não encontrados' });
+      console.log(`Dono não encontrado: ${ownerUserId}`);
+      return res.status(404).json({ error: 'Dono da conta não encontrado' });
     }
 
     console.log(`Dono identificado: ${ownerUser.username} (${ownerUser.name})`);
