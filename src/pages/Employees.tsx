@@ -125,7 +125,7 @@ export default function Employees() {
   };
 
   const inputCls = "w-full rounded-xl px-4 py-3 border outline-none " + (isDarkMode ? 'bg-slate-700/50 border-slate-600 text-white placeholder-gray-400 focus:border-purple-500' : 'bg-white border-gray-300 text-gray-900 focus:border-purple-500');
-  const selectCls = "w-full rounded-xl px-4 py-3 border outline-none " + (isDarkMode ? 'bg-slate-700/50 border-slate-600 text-white focus:border-purple-500' : 'bg-white border-gray-300 text-gray-900 focus:border-purple-500');
+  const selectCls = "w-full rounded-xl px-4 py-3 border outline-none " + (isDarkMode ? 'bg-gray-800 border-slate-600 text-white focus:border-purple-500 [&>option]:bg-gray-800 [&>option]:text-white' : 'bg-white border-gray-300 text-gray-900 focus:border-purple-500');
 
   return (
     <Layout>

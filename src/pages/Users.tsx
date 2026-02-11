@@ -90,7 +90,11 @@ export default function Users() {
 
   const getRoleLabel = (role: string) => {
     const roles: Record<string, string> = {
-      admin: 'Administrador', manager: 'Gerente', seller: 'Vendedor', viewer: 'Visualizador'
+      admin: 'Administrador', 
+      manager: 'Gerente', 
+      seller: 'Vendedor', 
+      stockist: 'Estoquista',
+      viewer: 'Visualizador'
     };
     return roles[role] || role;
   };
@@ -190,8 +194,17 @@ export default function Users() {
                 </div>
                 <div>
                   <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Perfil</label>
-                  <select value={formData.role} onChange={(e) => setFormData({ ...formData, role: e.target.value })} className={`w-full rounded-xl px-4 py-3 border outline-none ${isDarkMode ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-gray-300 text-gray-900'}`}>
+                  <select 
+                    value={formData.role} 
+                    onChange={(e) => setFormData({ ...formData, role: e.target.value })} 
+                    className={`w-full rounded-xl px-4 py-3 border outline-none ${
+                      isDarkMode 
+                        ? 'bg-gray-800 border-white/10 text-white [&>option]:bg-gray-800 [&>option]:text-white' 
+                        : 'bg-white border-gray-300 text-gray-900'
+                    }`}
+                  >
                     <option value="seller">Vendedor</option>
+                    <option value="stockist">Estoquista</option>
                     <option value="manager">Gerente</option>
                     <option value="admin">Administrador</option>
                     <option value="viewer">Visualizador</option>
