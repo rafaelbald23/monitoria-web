@@ -104,7 +104,13 @@ export default function Employees() {
   };
 
   const roleLabel = (r: string) => {
-    const labels: Record<string, string> = { admin: 'Admin', manager: 'Gerente', seller: 'Vendedor', viewer: 'Visualizador' };
+    const labels: Record<string, string> = { 
+      admin: 'Admin', 
+      manager: 'Gerente', 
+      seller: 'Vendedor', 
+      stockist: 'Estoquista',
+      viewer: 'Visualizador' 
+    };
     return labels[r] || r;
   };
 
@@ -234,6 +240,7 @@ export default function Employees() {
                   <label className={"block text-sm font-medium mb-2 " + (isDarkMode ? 'text-gray-300' : 'text-gray-700')}>Cargo</label>
                   <select value={formData.role} onChange={(e) => setFormData({ ...formData, role: e.target.value })} className={selectCls}>
                     <option value="seller">Vendedor</option>
+                    <option value="stockist">Estoquista</option>
                     <option value="manager">Gerente</option>
                     <option value="admin">Administrador</option>
                     <option value="viewer">Visualizador</option>

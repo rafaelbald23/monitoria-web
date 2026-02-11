@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import OrderDetailsModal from '../components/OrderDetailsModal';
 import { useTheme } from '../hooks/useTheme';
+import { useAuth } from '../hooks/useAuth';
 import api from '../lib/api';
 import { RefreshIcon, FilterIcon, PlusIcon, DollarIcon, ShoppingCartIcon, AlertIcon } from '../components/Icons';
 import { ExportButton } from '../components/ExportButton';
@@ -33,6 +34,8 @@ interface Account {
 export default function Sales() {
   const navigate = useNavigate();
   const { isDarkMode } = useTheme();
+  const { user } = useAuth();
+  const isStockist = user?.role === 'stockist';
   const [blingOrders, setBlingOrders] = useState<BlingOrder[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
@@ -546,7 +549,9 @@ Deve processar estoque: ${inv.comparison.shouldProcessStock ? 'SIM' : 'NÃO'}`;
               </div>
               <div>
                 <p className={"text-xs " + (isDarkMode ? 'text-gray-400' : 'text-gray-500')}>Receita Total</p>
-                <p className={"text-lg font-bold " + (isDarkMode ? 'text-green-400' : 'text-green-600')}>{stats.totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                <p className={"text-lg font-bold " + (isDarkMode ? 'text-green-400' : 'text-green-600')}>
+                  {isStockist ? '---' : stats.totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </p>
               </div>
             </div>
           </div>
@@ -673,7 +678,7 @@ Deve processar estoque: ${inv.comparison.shouldProcessStock ? 'SIM' : 'NÃO'}`;
                         {order.customerName || '-'}
                       </td>
                       <td className={`px-6 py-4 whitespace-nowrap text-sm font-semibold ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>
-                        {(order.totalAmount || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        {isStockist ? '---' : (order.totalAmount || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={"px-3 py-1 rounded-full text-xs font-medium border " + getStatusColor(order.status)}>{order.status}</span>
