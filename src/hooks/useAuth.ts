@@ -91,6 +91,13 @@ export const useAuth = create<AuthState>()(
         if (!user) return false;
         if (user.isMaster) return permission === 'masterPanel';
         if (user.isOwner) return true; // Dono tem acesso a tudo
+        
+        // Permissões específicas do estoquista
+        if (user.role === 'stockist') {
+          const stockistPermissions = ['products', 'newSale', 'sales', 'settings'];
+          return stockistPermissions.includes(permission);
+        }
+        
         return user.permissions?.includes(permission) || false;
       },
     }),

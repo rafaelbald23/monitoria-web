@@ -12,6 +12,19 @@ import MasterPanel from './pages/MasterPanel';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { useAuth } from './hooks/useAuth';
 
+// Helper para redirecionar baseado no role
+function DefaultRedirect() {
+  const { user } = useAuth();
+  
+  // Estoquista vai para Produtos
+  if (user?.role === 'stockist') {
+    return <Navigate to="/products" replace />;
+  }
+  
+  // Outros vão para Dashboard
+  return <Navigate to="/dashboard" replace />;
+}
+
 function App() {
   const { isAuthenticated } = useAuth();
 
@@ -20,7 +33,7 @@ function App() {
       <Routes>
         <Route
           path="/login"
-          element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />}
+          element={isAuthenticated ? <DefaultRedirect /> : <Login />}
         />
         <Route
           path="/dashboard"
@@ -102,7 +115,7 @@ function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/" element={<DefaultRedirect />} />
       </Routes>
     </BrowserRouter>
   );

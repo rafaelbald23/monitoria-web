@@ -66,6 +66,9 @@ router.post('/login', async (req: Request, res: Response) => {
     } else if (user.isOwner || !user.ownerId) {
       // Dono da conta tem acesso a tudo
       permissions = ['dashboard', 'products', 'sales', 'newSale', 'accounts', 'reports', 'settings', 'users'];
+    } else if (user.role === 'stockist') {
+      // Estoquista tem acesso limitado
+      permissions = ['products', 'newSale', 'sales', 'settings'];
     } else if (user.permissions) {
       // Funcionário tem permissões específicas
       try {
