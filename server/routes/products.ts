@@ -348,6 +348,12 @@ router.post('/zero-all-stock', authMiddleware, async (req: AuthRequest, res: Res
 
     console.log(`Senha validada com sucesso para: ${ownerUser.username}`);
 
+    // Buscar dados do usuário atual para o log
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { username: true },
+    });
+
     // Buscar todos os produtos do usuário
     console.log(`Buscando produtos do usuário...`);
     const products = await prisma.product.findMany({
@@ -356,14 +362,14 @@ router.post('/zero-all-stock', authMiddleware, async (req: AuthRequest, res: Res
         mappings: {
           some: {
             account: {
-              userId: userId,
+              userId: ownerUserId,
             },
           },
         },
       },
       include: {
         movements: {
-          where: { userId: userId },
+          where: { userId: ownerUserId },
         },
       },
     });
@@ -405,8 +411,8 @@ router.post('/zero-all-stock', authMiddleware, async (req: AuthRequest, res: Res
               type: currentStock > 0 ? 'EXIT' : 'ENTRY',
               productId: product.id,
               quantity: Math.abs(currentStock),
-              reason: `Zerado em lote por ${currentUser.username} (autorizado pelo administrador ${ownerUser.name})`,
-              userId: userId,
+              reason: `Zerado em lote por ${currentUser?.username || 'admin'} (autorizado pelo administrador ${ownerUser.name})`,
+              userId: ownerUserId,
               syncStatus: 'completed',
             },
           });
