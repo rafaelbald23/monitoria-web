@@ -326,24 +326,55 @@ async function syncAccountOrders(account: any): Promise<{ success: boolean; proc
                 for (const componente of kitComponents) {
                   const compSku = componente.produto?.codigo;
                   const compNome = componente.produto?.nome;
+                  const compEan = componente.produto?.gtin || componente.produto?.gtinEmbalagem; // EAN do componente
                   const compQtd = (componente.quantidade || 1) * quantidade;
                   
-                  console.log(`  📦 [AUTO-SYNC] Componente: SKU="${compSku}", Nome="${compNome}", Qtd=${compQtd}`);
+                  console.log(`  📦 [AUTO-SYNC] Componente: SKU="${compSku}", EAN="${compEan}", Nome="${compNome}", Qtd=${compQtd}`);
                   
-                  if (!compSku) continue;
+                  // Buscar componente no estoque - PRIORIDADE: EAN > SKU > Nome
+                  let compProduct: any = null;
                   
-                  const compProduct = await tx.product.findFirst({
-                    where: {
-                      OR: [
-                        { sku: compSku },
-                        { internalCode: compSku }
-                      ]
+                  // 1. PRIORIDADE: Buscar por EAN (double check da Bling)
+                  if (compEan) {
+                    compProduct = await tx.product.findFirst({
+                      where: { ean: compEan }
+                    });
+                    if (compProduct) {
+                      console.log(`  ✅ [AUTO-SYNC] Componente encontrado por EAN: ${compProduct.name}`);
                     }
-                  });
+                  }
+                  
+                  // 2. Se não encontrou por EAN, buscar por SKU
+                  if (!compProduct && compSku) {
+                    compProduct = await tx.product.findFirst({
+                      where: {
+                        OR: [
+                          { sku: compSku },
+                          { internalCode: compSku }
+                        ]
+                      }
+                    });
+                    if (compProduct) {
+                      console.log(`  ✅ [AUTO-SYNC] Componente encontrado por SKU: ${compProduct.name}`);
+                    }
+                  }
+                  
+                  // 3. Se não encontrou por EAN/SKU, buscar por nome
+                  if (!compProduct && compNome) {
+                    compProduct = await tx.product.findFirst({
+                      where: {
+                        name: {
+                          contains: compNome
+                        }
+                      }
+                    });
+                    if (compProduct) {
+                      console.log(`  ✅ [AUTO-SYNC] Componente encontrado por Nome: ${compProduct.name}`);
+                    }
+                  }
                   
                   if (compProduct) {
-                    console.log(`  ✅ [AUTO-SYNC] Componente encontrado: ${compProduct.name}`);
-                    console.log(`  📦 [AUTO-SYNC] DANDO BAIXA: ${compQtd}x ${compProduct.name}`);
+                    console.log(`  📦 [AUTO-SYNC] DANDO BAIXA: ${compQtd}x ${compProduct.name} (EAN: ${compProduct.ean || 'N/A'}, SKU: ${compProduct.sku})`);
                     
                     await tx.movement.create({
                       data: {
@@ -358,7 +389,7 @@ async function syncAccountOrders(account: any): Promise<{ success: boolean; proc
                     
                     produtosProcessados++;
                   } else {
-                    console.log(`  ⚠️ [AUTO-SYNC] Componente não encontrado: SKU="${compSku}"`);
+                    console.log(`  ⚠️ [AUTO-SYNC] Componente não encontrado: EAN="${compEan}", SKU="${compSku}", Nome="${compNome}"`);
                   }
                 }
                 

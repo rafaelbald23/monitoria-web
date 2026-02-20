@@ -1767,14 +1767,26 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
                   for (const componente of kitComponents) {
                     const compSku = componente.produto?.codigo;
                     const compNome = componente.produto?.nome;
+                    const compEan = componente.produto?.gtin || componente.produto?.gtinEmbalagem; // EAN do componente
                     const compQtd = (componente.quantidade || 1) * quantidade; // Qtd do componente * qtd do kit
                     
-                    console.log(`  📦 Componente: SKU="${compSku}", Nome="${compNome}", Qtd=${compQtd}`);
+                    console.log(`  📦 Componente: SKU="${compSku}", EAN="${compEan}", Nome="${compNome}", Qtd=${compQtd}`);
                     
-                    // Buscar componente no estoque
+                    // Buscar componente no estoque - PRIORIDADE: EAN > SKU > Nome
                     let compProduct: any = null;
                     
-                    if (compSku) {
+                    // 1. PRIORIDADE: Buscar por EAN (double check da Bling)
+                    if (compEan) {
+                      compProduct = await tx.product.findFirst({
+                        where: { ean: compEan }
+                      });
+                      if (compProduct) {
+                        console.log(`  ✅ Componente encontrado por EAN: ${compProduct.name}`);
+                      }
+                    }
+                    
+                    // 2. Se não encontrou por EAN, buscar por SKU
+                    if (!compProduct && compSku) {
                       compProduct = await tx.product.findFirst({
                         where: {
                           OR: [
@@ -1783,8 +1795,12 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
                           ]
                         }
                       });
+                      if (compProduct) {
+                        console.log(`  ✅ Componente encontrado por SKU: ${compProduct.name}`);
+                      }
                     }
                     
+                    // 3. Se não encontrou por EAN/SKU, buscar por nome
                     if (!compProduct && compNome) {
                       compProduct = await tx.product.findFirst({
                         where: {
@@ -1793,11 +1809,13 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
                           }
                         }
                       });
+                      if (compProduct) {
+                        console.log(`  ✅ Componente encontrado por Nome: ${compProduct.name}`);
+                      }
                     }
                     
                     if (compProduct) {
-                      console.log(`  ✅ Componente encontrado: ${compProduct.name}`);
-                      console.log(`  📦 DANDO BAIXA: ${compQtd}x ${compProduct.name} (SKU: ${compProduct.sku})`);
+                      console.log(`  📦 DANDO BAIXA: ${compQtd}x ${compProduct.name} (EAN: ${compProduct.ean || 'N/A'}, SKU: ${compProduct.sku})`);
                       
                       await tx.movement.create({
                         data: {
@@ -1812,7 +1830,7 @@ router.get('/orders/:accountId', authMiddleware, async (req: AuthRequest, res: R
                       
                       produtosProcessados++;
                     } else {
-                      console.log(`  ⚠️ Componente não encontrado no estoque: SKU="${compSku}", Nome="${compNome}"`);
+                      console.log(`  ⚠️ Componente não encontrado no estoque: EAN="${compEan}", SKU="${compSku}", Nome="${compNome}"`);
                     }
                   }
                   
