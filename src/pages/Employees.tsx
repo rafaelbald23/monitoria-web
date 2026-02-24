@@ -29,7 +29,23 @@ export default function Employees() {
   const [showModal, setShowModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [formData, setFormData] = useState({ username: '', password: '', name: '', email: '', role: 'seller' });
+  const [formData, setFormData] = useState({ 
+    username: '', 
+    password: '', 
+    name: '', 
+    email: '', 
+    role: 'seller',
+    permissions: {
+      dashboard: true,
+      products: true,
+      newSale: true,
+      sales: true,
+      accounts: false,
+      reports: false,
+      settings: true,
+      users: false,
+    }
+  });
 
   useEffect(() => {
     loadData();
@@ -55,16 +71,41 @@ export default function Employees() {
 
   const canAdd = () => userInfo ? userInfo.currentEmployees < userInfo.maxEmployees : false;
 
-  const resetForm = () => setFormData({ username: '', password: '', name: '', email: '', role: 'seller' });
+  const resetForm = () => setFormData({ 
+    username: '', 
+    password: '', 
+    name: '', 
+    email: '', 
+    role: 'seller',
+    permissions: {
+      dashboard: true,
+      products: true,
+      newSale: true,
+      sales: true,
+      accounts: false,
+      reports: false,
+      settings: true,
+      users: false,
+    }
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // Preparar dados para envio
+      const dataToSend = {
+        ...formData,
+        // Se for stockist, forçar permissões específicas
+        permissions: formData.role === 'stockist' 
+          ? JSON.stringify(['products', 'newSale', 'sales', 'settings'])
+          : JSON.stringify(Object.keys(formData.permissions).filter(k => formData.permissions[k as keyof typeof formData.permissions]))
+      };
+      
       if (editingEmployee) {
-        await api.updateUser(editingEmployee.id, formData);
+        await api.updateUser(editingEmployee.id, dataToSend);
         showMsg('success', 'Funcionário atualizado!');
       } else {
-        await api.createUser(formData);
+        await api.createUser(dataToSend);
         showMsg('success', 'Funcionário criado!');
       }
       setShowModal(false);
@@ -78,7 +119,46 @@ export default function Employees() {
 
   const handleEdit = (emp: Employee) => {
     setEditingEmployee(emp);
-    setFormData({ username: emp.username, password: '', name: emp.name, email: emp.email, role: emp.role });
+    
+    // Parsear permissões do funcionário
+    let permissions = {
+      dashboard: true,
+      products: true,
+      newSale: true,
+      sales: true,
+      accounts: false,
+      reports: false,
+      settings: true,
+      users: false,
+    };
+    
+    // Se o funcionário tem permissões salvas, usar elas
+    if ((emp as any).permissions) {
+      try {
+        const perms = JSON.parse((emp as any).permissions);
+        permissions = {
+          dashboard: perms.includes('dashboard'),
+          products: perms.includes('products'),
+          newSale: perms.includes('newSale'),
+          sales: perms.includes('sales'),
+          accounts: perms.includes('accounts'),
+          reports: perms.includes('reports'),
+          settings: perms.includes('settings'),
+          users: perms.includes('users'),
+        };
+      } catch (e) {
+        console.error('Erro ao parsear permissões:', e);
+      }
+    }
+    
+    setFormData({ 
+      username: emp.username, 
+      password: '', 
+      name: emp.name, 
+      email: emp.email, 
+      role: emp.role,
+      permissions
+    });
     setShowModal(true);
   };
 
@@ -246,6 +326,53 @@ export default function Employees() {
                     <option value="viewer">Visualizador</option>
                   </select>
                 </div>
+                
+                {/* Permissões - Apenas se NÃO for stockist (stockist tem permissões fixas) */}
+                {formData.role !== 'stockist' && (
+                  <div className={"p-4 rounded-xl border " + (isDarkMode ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-200')}>
+                    <label className={"block text-sm font-medium mb-3 " + (isDarkMode ? 'text-gray-300' : 'text-gray-700')}>Permissões de Acesso</label>
+                    <div className="space-y-2">
+                      {[
+                        { key: 'dashboard', label: 'Dashboard' },
+                        { key: 'products', label: 'Produtos' },
+                        { key: 'newSale', label: 'Nova Venda' },
+                        { key: 'sales', label: 'Vendas' },
+                        { key: 'accounts', label: 'Contas Bling' },
+                        { key: 'reports', label: 'Relatórios' },
+                        { key: 'settings', label: 'Configurações' },
+                        { key: 'users', label: 'Funcionários' },
+                      ].map(perm => (
+                        <label key={perm.key} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.permissions[perm.key as keyof typeof formData.permissions]}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              permissions: {
+                                ...formData.permissions,
+                                [perm.key]: e.target.checked
+                              }
+                            })}
+                            className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                          />
+                          <span className={"text-sm " + (isDarkMode ? 'text-gray-300' : 'text-gray-700')}>{perm.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className={"text-xs mt-2 " + (isDarkMode ? 'text-gray-500' : 'text-gray-400')}>
+                      Selecione quais telas este funcionário poderá acessar
+                    </p>
+                  </div>
+                )}
+                
+                {/* Aviso para Estoquista */}
+                {formData.role === 'stockist' && (
+                  <div className={"p-4 rounded-xl border " + (isDarkMode ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' : 'bg-blue-50 border-blue-200 text-blue-700')}>
+                    <p className="text-sm">
+                      <strong>Estoquista</strong> tem acesso fixo a: Produtos, Nova Venda, Vendas (sem valores) e Configurações.
+                    </p>
+                  </div>
+                )}
                 <div className="flex justify-end gap-3 pt-4">
                   <button type="button" onClick={() => { setShowModal(false); setEditingEmployee(null); }} className={"px-6 py-3 rounded-xl font-medium " + (isDarkMode ? 'bg-slate-700 text-gray-300 hover:bg-slate-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200')}>Cancelar</button>
                   <button type="submit" className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-purple-500 text-white rounded-xl font-medium hover:opacity-90">Salvar</button>

@@ -139,6 +139,7 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
           role: true,
           isActive: true,
           createdAt: true,
+          permissions: true, // Incluir permissões
         },
         orderBy: { createdAt: 'desc' },
       });
@@ -157,6 +158,7 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
           role: true,
           isActive: true,
           createdAt: true,
+          permissions: true, // Incluir permissões
         },
         orderBy: { createdAt: 'desc' },
       });
@@ -174,7 +176,7 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
 router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.userId;
-    const { username, password, name, email, role } = req.body;
+    const { username, password, name, email, role, permissions } = req.body;
 
     const currentUser = await prisma.user.findUnique({
       where: { id: userId },
@@ -225,6 +227,7 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
         isActive: true,
         ownerId: userId,
         isOwner: false,
+        permissions: permissions || null, // Salvar permissões
       },
     });
 
@@ -274,6 +277,11 @@ router.put('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
     
     if (password) {
       updateData.password = await bcrypt.hash(password, 12);
+    }
+    
+    // Adicionar permissões se fornecidas
+    if (req.body.permissions !== undefined) {
+      updateData.permissions = req.body.permissions;
     }
 
     await prisma.user.update({
