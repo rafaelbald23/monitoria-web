@@ -694,11 +694,6 @@ Deve processar estoque: ${inv.comparison.shouldProcessStock ? 'SIM' : 'NÃO'}`;
                         ) : (
                           <span className={"text-xs " + (isDarkMode ? 'text-gray-500' : 'text-gray-400')}>-</span>
                         )}
-                      </td>                            title="Forçar Sync"
-                          >
-                            🔧
-                          </button>
-                        </div>
                       </td>
                     </tr>
                   ))}
