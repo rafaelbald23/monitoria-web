@@ -24,6 +24,24 @@ interface PeriodStats {
   totalExitsCount: number;
   salesInPeriod: number;
   salesCount: number;
+  entryDetails?: Array<{
+    productId: string;
+    productName: string;
+    sku: string;
+    ean: string | null;
+    quantity: number;
+    reason: string;
+    createdAt: string;
+  }>;
+  exitDetails?: Array<{
+    productId: string;
+    productName: string;
+    sku: string;
+    ean: string | null;
+    quantity: number;
+    reason: string;
+    createdAt: string;
+  }>;
 }
 
 interface DashboardStats {
@@ -55,6 +73,8 @@ export default function Dashboard() {
       totalExitsCount: 0,
       salesInPeriod: 0,
       salesCount: 0,
+      entryDetails: [],
+      exitDetails: [],
     },
     todaySales: 0,
     lowStockItems: 0,
@@ -67,6 +87,8 @@ export default function Dashboard() {
   const [selectedPeriod, setSelectedPeriod] = useState('today');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
+  const [showEntriesModal, setShowEntriesModal] = useState(false);
+  const [showExitsModal, setShowExitsModal] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
@@ -138,7 +160,7 @@ export default function Dashboard() {
       icon: <TrendingUpIcon size={24} />,
       bgColor: isDarkMode ? 'bg-green-500/10' : 'bg-green-100',
       textColor: isDarkMode ? 'text-green-400' : 'text-green-600',
-      path: '/products',
+      onClick: () => setShowEntriesModal(true),
       description: 'Produtos que entraram no estoque'
     },
     {
@@ -148,7 +170,7 @@ export default function Dashboard() {
       icon: <ShoppingCartIcon size={24} />,
       bgColor: isDarkMode ? 'bg-blue-500/10' : 'bg-blue-100',
       textColor: isDarkMode ? 'text-blue-400' : 'text-blue-600',
-      path: '/sales',
+      onClick: () => setShowExitsModal(true),
       description: 'Produtos que saíram do estoque'
     },
     {
@@ -330,7 +352,7 @@ export default function Dashboard() {
           {dashboardStats.map((stat, index) => (
             <button
               key={index}
-              onClick={() => navigate(stat.path)}
+              onClick={() => stat.onClick ? stat.onClick() : navigate(stat.path!)}
               className={`rounded-2xl p-6 backdrop-blur-xl border transition-all duration-300 hover:scale-[1.02] text-left ${
                 isDarkMode 
                   ? 'bg-white/5 border-white/10 hover:border-white/20' 
@@ -361,6 +383,128 @@ export default function Dashboard() {
             </button>
           ))}
         </div>
+
+        {/* Modal de Entradas */}
+        {showEntriesModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className={`rounded-2xl max-w-4xl w-full max-h-[80vh] overflow-hidden ${
+              isDarkMode ? 'bg-slate-800' : 'bg-white'
+            }`}>
+              <div className={`p-6 border-b ${isDarkMode ? 'border-white/10' : 'border-gray-200'}`}>
+                <div className="flex justify-between items-center">
+                  <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                    Entradas no Estoque - {getPeriodLabel()}
+                  </h2>
+                  <button
+                    onClick={() => setShowEntriesModal(false)}
+                    className={`p-2 rounded-lg ${isDarkMode ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}
+                  >
+                    <span className="text-2xl">×</span>
+                  </button>
+                </div>
+              </div>
+              <div className="p-6 overflow-y-auto max-h-[60vh]">
+                {stats.periodStats.entryDetails && stats.periodStats.entryDetails.length > 0 ? (
+                  <div className="space-y-3">
+                    {stats.periodStats.entryDetails.map((entry, idx) => (
+                      <div
+                        key={idx}
+                        className={`p-4 rounded-xl border ${
+                          isDarkMode ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-200'
+                        }`}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <p className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                              {entry.productName}
+                            </p>
+                            <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                              SKU: {entry.sku} {entry.ean && `| EAN: ${entry.ean}`}
+                            </p>
+                            <p className={`text-sm ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                              {entry.reason}
+                            </p>
+                            <p className={`text-xs ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>
+                              {new Date(entry.createdAt).toLocaleString('pt-BR')}
+                            </p>
+                          </div>
+                          <div className={`px-3 py-1 rounded-lg ${isDarkMode ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-700'}`}>
+                            +{entry.quantity}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Nenhuma entrada no período selecionado
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de Saídas */}
+        {showExitsModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className={`rounded-2xl max-w-4xl w-full max-h-[80vh] overflow-hidden ${
+              isDarkMode ? 'bg-slate-800' : 'bg-white'
+            }`}>
+              <div className={`p-6 border-b ${isDarkMode ? 'border-white/10' : 'border-gray-200'}`}>
+                <div className="flex justify-between items-center">
+                  <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                    Saídas do Estoque - {getPeriodLabel()}
+                  </h2>
+                  <button
+                    onClick={() => setShowExitsModal(false)}
+                    className={`p-2 rounded-lg ${isDarkMode ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}
+                  >
+                    <span className="text-2xl">×</span>
+                  </button>
+                </div>
+              </div>
+              <div className="p-6 overflow-y-auto max-h-[60vh]">
+                {stats.periodStats.exitDetails && stats.periodStats.exitDetails.length > 0 ? (
+                  <div className="space-y-3">
+                    {stats.periodStats.exitDetails.map((exit, idx) => (
+                      <div
+                        key={idx}
+                        className={`p-4 rounded-xl border ${
+                          isDarkMode ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-200'
+                        }`}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <p className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                              {exit.productName}
+                            </p>
+                            <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                              SKU: {exit.sku} {exit.ean && `| EAN: ${exit.ean}`}
+                            </p>
+                            <p className={`text-sm ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                              {exit.reason}
+                            </p>
+                            <p className={`text-xs ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>
+                              {new Date(exit.createdAt).toLocaleString('pt-BR')}
+                            </p>
+                          </div>
+                          <div className={`px-3 py-1 rounded-lg ${isDarkMode ? 'bg-red-500/20 text-red-400' : 'bg-red-100 text-red-700'}`}>
+                            -{exit.quantity}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Nenhuma saída no período selecionado
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Recent Sales */}
         {stats.recentSales.length > 0 && (
