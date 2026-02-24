@@ -638,10 +638,10 @@ Deve processar estoque: ${inv.comparison.shouldProcessStock ? 'SIM' : 'NÃO'}`;
                     <th className={"px-6 py-3 text-left text-xs font-medium uppercase tracking-wider " + (isDarkMode ? 'text-gray-400' : 'text-gray-500')}>Pedido</th>
                     <th className={"px-6 py-3 text-left text-xs font-medium uppercase tracking-wider " + (isDarkMode ? 'text-gray-400' : 'text-gray-500')}>Data</th>
                     <th className={"px-6 py-3 text-left text-xs font-medium uppercase tracking-wider " + (isDarkMode ? 'text-gray-400' : 'text-gray-500')}>Cliente</th>
+                    <th className={"px-6 py-3 text-left text-xs font-medium uppercase tracking-wider " + (isDarkMode ? 'text-gray-400' : 'text-gray-500')}>Conta Bling</th>
                     <th className={"px-6 py-3 text-left text-xs font-medium uppercase tracking-wider " + (isDarkMode ? 'text-gray-400' : 'text-gray-500')}>Valor</th>
                     <th className={"px-6 py-3 text-left text-xs font-medium uppercase tracking-wider " + (isDarkMode ? 'text-gray-400' : 'text-gray-500')}>Status</th>
                     <th className={"px-6 py-3 text-left text-xs font-medium uppercase tracking-wider " + (isDarkMode ? 'text-gray-400' : 'text-gray-500')}>Baixa</th>
-                    <th className={"px-6 py-3 text-left text-xs font-medium uppercase tracking-wider " + (isDarkMode ? 'text-gray-400' : 'text-gray-500')}>Debug</th>
                   </tr>
                 </thead>
                 <tbody className={"divide-y " + (isDarkMode ? 'divide-white/10' : 'divide-gray-200')}>
@@ -677,6 +677,9 @@ Deve processar estoque: ${inv.comparison.shouldProcessStock ? 'SIM' : 'NÃO'}`;
                       <td className={`px-6 py-4 whitespace-nowrap text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                         {order.customerName || '-'}
                       </td>
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {(order as any).accountName || '-'}
+                      </td>
                       <td className={`px-6 py-4 whitespace-nowrap text-sm font-semibold ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>
                         {isStockist ? '---' : (order.totalAmount || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                       </td>
@@ -691,34 +694,7 @@ Deve processar estoque: ${inv.comparison.shouldProcessStock ? 'SIM' : 'NÃO'}`;
                         ) : (
                           <span className={"text-xs " + (isDarkMode ? 'text-gray-500' : 'text-gray-400')}>-</span>
                         )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex gap-1">
-                          <button 
-                            onClick={() => handleCorrectStatus(order.orderNumber)} 
-                            className={"px-2 py-1 rounded text-xs font-medium " + (isDarkMode ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' : 'bg-green-100 text-green-700 hover:bg-green-200')}
-                            title="Corrigir Status"
-                          >
-                            ✅
-                          </button>
-                          <button 
-                            onClick={() => handleInvestigateOrder(order.orderNumber)} 
-                            className={"px-2 py-1 rounded text-xs font-medium " + (isDarkMode ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' : 'bg-purple-100 text-purple-700 hover:bg-purple-200')}
-                            title="Investigar Status"
-                          >
-                            🕵️
-                          </button>
-                          <button 
-                            onClick={() => handleDebugOrder(order.orderNumber)} 
-                            className={"px-2 py-1 rounded text-xs font-medium " + (isDarkMode ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' : 'bg-blue-100 text-blue-700 hover:bg-blue-200')}
-                            title="Debug Status"
-                          >
-                            🔍
-                          </button>
-                          <button 
-                            onClick={() => handleForceSyncOrder(order.orderNumber)} 
-                            className={"px-2 py-1 rounded text-xs font-medium " + (isDarkMode ? 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30' : 'bg-orange-100 text-orange-700 hover:bg-orange-200')}
-                            title="Forçar Sync"
+                      </td>                            title="Forçar Sync"
                           >
                             🔧
                           </button>

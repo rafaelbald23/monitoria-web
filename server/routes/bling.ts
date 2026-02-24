@@ -2137,6 +2137,12 @@ router.get('/orders/all/:accountId', authMiddleware, async (req: AuthRequest, re
     const { accountId } = req.params;
     const userId = req.user!.userId;
 
+    // Buscar informações da conta
+    const account = await prisma.blingAccount.findUnique({
+      where: { id: accountId },
+      select: { name: true },
+    });
+
     // Últimos 3 meses
     const threeMonthsAgo = new Date();
     threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
@@ -2158,6 +2164,7 @@ router.get('/orders/all/:accountId', authMiddleware, async (req: AuthRequest, re
       orders: orders.map(o => ({
         ...o,
         items: JSON.parse(o.items),
+        accountName: account?.name || 'Conta Bling', // Adicionar nome da conta
       })),
     });
   } catch (error: any) {
