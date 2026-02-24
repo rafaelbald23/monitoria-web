@@ -109,9 +109,7 @@ router.get('/stats', authMiddleware, async (req: AuthRequest, res: Response) => 
     // Get Bling orders to filter by status
     const blingOrders = await prisma.blingOrder.findMany({
       where: {
-        account: {
-          userId: ownerUserId,
-        },
+        userId: ownerUserId,
       },
       select: {
         orderNumber: true,

@@ -118,7 +118,7 @@ export default function Accounts() {
 
     try {
       setLoading(true);
-      const result = await api.cleanupDuplicates();
+      const result = await api.cleanupDuplicates() as any;
       
       if (result.success) {
         alert(`Limpeza concluída!\n\n${result.duplicatesRemoved} produtos duplicados foram mesclados.\n\nDetalhes:\n${result.mergeLog?.slice(0, 5).join('\n') || 'Nenhuma duplicata encontrada'}`);
@@ -140,7 +140,7 @@ export default function Accounts() {
 
     try {
       setLoading(true);
-      const result = await api.fixOldStatus();
+      const result = await api.fixOldStatus() as any;
       
       if (result.success) {
         alert(`Correção concluída!\n\n${result.count} pedidos foram atualizados.\n\nDetalhes:\n- Em Digitação → Atendido: ${result.details?.emDigitacao || 0}\n- Status não mapeado → Despachado: ${result.details?.statusNaoMapeado || 0}`);
