@@ -69,9 +69,43 @@ router.get('/stats', authMiddleware, async (req: AuthRequest, res: Response) => 
       },
     });
 
+    // Get Bling orders to filter by status (BUSCAR ANTES para usar nos filtros)
+    const blingOrders = await prisma.blingOrder.findMany({
+      where: {
+        userId: ownerUserId,
+      },
+      select: {
+        orderNumber: true,
+        status: true,
+        totalAmount: true,
+        createdAt: true,
+      },
+    });
+
+    // Status que contam para vendas: Verificado, Atendido, Despachado
+    const validStatuses = ['verificado', 'atendido', 'despachado'];
+    const validOrders = blingOrders.filter(order => 
+      validStatuses.includes(order.status.toLowerCase())
+    );
+
+    // Números de pedidos válidos (para filtrar saídas)
+    const validOrderNumbers = validOrders.map(o => o.orderNumber);
+
     // Calculate entries and exits in period
     const entries = movementsInPeriod.filter(m => m.type === 'ENTRY');
-    const exits = movementsInPeriod.filter(m => m.type === 'EXIT');
+    
+    // Para saídas, filtrar apenas as que vieram de pedidos com status válidos
+    const exits = movementsInPeriod.filter(m => {
+      if (m.type !== 'EXIT') return false;
+      
+      const reason = m.reason || '';
+      
+      // Se não menciona "Pedido", não é de venda do Bling
+      if (!reason.includes('Pedido')) return false;
+      
+      // Verificar se menciona algum número de pedido válido
+      return validOrderNumbers.some(orderNum => reason.includes(orderNum));
+    });
     
     const totalEntriesQty = entries.reduce((sum, m) => sum + m.quantity, 0);
     const totalExitsQty = exits.reduce((sum, m) => sum + m.quantity, 0);
@@ -105,25 +139,6 @@ router.get('/stats', authMiddleware, async (req: AuthRequest, res: Response) => 
       where: { userId: ownerUserId },
       orderBy: { createdAt: 'desc' },
     });
-
-    // Get Bling orders to filter by status
-    const blingOrders = await prisma.blingOrder.findMany({
-      where: {
-        userId: ownerUserId,
-      },
-      select: {
-        orderNumber: true,
-        status: true,
-        totalAmount: true,
-        createdAt: true,
-      },
-    });
-
-    // Status que contam para vendas: Verificado, Atendido, Despachado
-    const validStatuses = ['verificado', 'atendido', 'despachado'];
-    const validOrders = blingOrders.filter(order => 
-      validStatuses.includes(order.status.toLowerCase())
-    );
 
     // Get accounts
     const accounts = await prisma.blingAccount.findMany({
