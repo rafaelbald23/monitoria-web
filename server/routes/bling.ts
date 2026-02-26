@@ -55,7 +55,7 @@ async function fetchKitComponents(productId: string, accessToken: string): Promi
       console.log(`✅ Kit detectado com ${componentes.length} componentes (tipoEstoque: ${productData.estrutura.tipoEstoque})`);
       
       // 🔥 BUSCAR DADOS COMPLETOS DE CADA COMPONENTE
-      const componentesCompletos = [];
+      const componentesCompletos: any[] = [];
       
       for (const comp of componentes) {
         const componenteId = comp.produto?.id;
