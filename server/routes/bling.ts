@@ -49,20 +49,60 @@ async function fetchKitComponents(productId: string, accessToken: string): Promi
     
     const productData = response.data?.data;
     
-    // Verificar se é um kit (tipoEstoque = 'F' de Fabricado/Kit)
-    if (productData?.estrutura?.tipoEstoque === 'F' && productData?.estrutura?.componentes) {
+    // Verificar se tem componentes (independente do tipoEstoque)
+    if (productData?.estrutura?.componentes && productData.estrutura.componentes.length > 0) {
       const componentes = productData.estrutura.componentes;
-      console.log(`✅ Kit detectado com ${componentes.length} componentes`);
+      console.log(`✅ Kit detectado com ${componentes.length} componentes (tipoEstoque: ${productData.estrutura.tipoEstoque})`);
       
-      // LOG DETALHADO: Mostrar TODOS os dados de cada componente
-      componentes.forEach((comp: any, index: number) => {
-        console.log(`\n📦 Componente ${index + 1}:`, JSON.stringify(comp, null, 2));
-      });
+      // 🔥 BUSCAR DADOS COMPLETOS DE CADA COMPONENTE
+      const componentesCompletos = [];
       
-      return componentes;
+      for (const comp of componentes) {
+        const componenteId = comp.produto?.id;
+        
+        if (componenteId) {
+          try {
+            console.log(`  🔍 Buscando dados completos do componente ID: ${componenteId}...`);
+            
+            // Delay para respeitar rate limit (3 req/segundo = 333ms)
+            await new Promise(resolve => setTimeout(resolve, 400));
+            
+            const compResponse = await axios.get(`${BLING_API_URL}/produtos/${componenteId}`, {
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                Accept: 'application/json',
+              },
+              timeout: 15000,
+            });
+            
+            const componenteData = compResponse.data?.data;
+            
+            if (componenteData) {
+              console.log(`  ✅ Componente encontrado: ${componenteData.nome}`);
+              console.log(`     - SKU: ${componenteData.codigo}`);
+              console.log(`     - EAN: ${componenteData.gtin || 'NÃO TEM'}`);
+              console.log(`     - Quantidade no kit: ${comp.quantidade}`);
+              
+              componentesCompletos.push({
+                ...comp,
+                produto: componenteData, // Substituir pelo objeto completo
+              });
+            }
+          } catch (compError: any) {
+            console.log(`  ⚠️ Erro ao buscar componente ${componenteId}: ${compError.message}`);
+            // Manter o componente original mesmo se der erro
+            componentesCompletos.push(comp);
+          }
+        } else {
+          componentesCompletos.push(comp);
+        }
+      }
+      
+      console.log(`✅ ${componentesCompletos.length} componentes processados`);
+      return componentesCompletos;
     }
     
-    console.log(`ℹ️ Produto não é um kit ou não tem componentes`);
+    console.log(`ℹ️ Produto não é um kit ou não tem componentes (tipoEstoque: ${productData?.estrutura?.tipoEstoque})`);
     return [];
   } catch (error: any) {
     console.log(`⚠️ Erro ao buscar componentes do kit: ${error.message}`);
