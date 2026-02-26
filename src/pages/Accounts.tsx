@@ -155,6 +155,44 @@ export default function Accounts() {
     }
   };
 
+  const handleTestKit = async (accountId: string) => {
+    const productId = prompt('🧪 TESTE DE KIT\n\nDigite o ID do produto kit no Bling:\n(Você encontra o ID na URL do produto no Bling)');
+    if (!productId) return;
+
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/bling/test-kit/${accountId}/${productId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+      const result = await response.json();
+      
+      if (result.success) {
+        const msg = `🧪 RESULTADO DO TESTE DE KIT\n\n` +
+          `É Kit: ${result.isKit ? 'SIM ✅' : 'NÃO ❌'}\n` +
+          `Número de Componentes: ${result.componentCount}\n\n` +
+          `⚠️ IMPORTANTE:\n` +
+          `Verifique os LOGS DO SERVIDOR para ver a estrutura completa!\n\n` +
+          `Os logs mostrarão:\n` +
+          `- Se o campo EAN (gtin/gtinEmbalagem) existe\n` +
+          `- Todos os dados de cada componente\n` +
+          `- Estrutura completa retornada pela API do Bling\n\n` +
+          `${result.message}`;
+        
+        alert(msg);
+        console.log('📦 Resultado completo do teste:', result);
+      } else {
+        alert(`❌ Erro: ${result.error}`);
+      }
+    } catch (error: any) {
+      console.error('Erro ao testar kit:', error);
+      alert('❌ Erro ao testar kit');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Layout>
       <div className="p-6">
@@ -235,6 +273,13 @@ export default function Accounts() {
                   <button onClick={() => handleSync(account.id)} className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-colors ${isDarkMode ? 'bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'}`}>
                     <RefreshIcon size={16} />
                     Sincronizar
+                  </button>
+                  <button 
+                    onClick={() => handleTestKit(account.id)} 
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-colors ${isDarkMode ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}
+                    title="Testar se um produto é kit e ver seus componentes"
+                  >
+                    🧪 Testar Kit
                   </button>
                   <button onClick={() => handleEdit(account)} className={`px-4 py-2 rounded-xl transition-colors ${isDarkMode ? 'bg-white/5 text-gray-300 hover:bg-white/10' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>Editar</button>
                   <button onClick={() => handleDelete(account.id)} className={`px-4 py-2 rounded-xl transition-colors ${isDarkMode ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}>Excluir</button>

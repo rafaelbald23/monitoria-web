@@ -53,6 +53,12 @@ async function fetchKitComponents(productId: string, accessToken: string): Promi
     if (productData?.estrutura?.tipoEstoque === 'F' && productData?.estrutura?.componentes) {
       const componentes = productData.estrutura.componentes;
       console.log(`✅ Kit detectado com ${componentes.length} componentes`);
+      
+      // LOG DETALHADO: Mostrar TODOS os dados de cada componente
+      componentes.forEach((comp: any, index: number) => {
+        console.log(`\n📦 Componente ${index + 1}:`, JSON.stringify(comp, null, 2));
+      });
+      
       return componentes;
     }
     
@@ -63,6 +69,35 @@ async function fetchKitComponents(productId: string, accessToken: string): Promi
     return [];
   }
 }
+
+// 🧪 ENDPOINT DE TESTE: Verificar estrutura completa de um kit
+router.get('/test-kit/:accountId/:productId', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { accountId, productId } = req.params;
+    
+    const account = await prisma.blingAccount.findUnique({
+      where: { id: accountId },
+    });
+
+    if (!account || !account.accessToken) {
+      return res.json({ success: false, error: 'Conta não encontrada ou sem token' });
+    }
+
+    console.log(`\n🧪 TESTE DE KIT - Produto ID: ${productId}`);
+    const componentes = await fetchKitComponents(productId, account.accessToken);
+    
+    res.json({
+      success: true,
+      isKit: componentes.length > 0,
+      componentCount: componentes.length,
+      components: componentes,
+      message: 'Verifique os logs do servidor para ver a estrutura completa'
+    });
+  } catch (error: any) {
+    console.error('Erro no teste de kit:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
 
 // Detecta automaticamente a URL base
 function getRedirectUri(req: Request): string {
