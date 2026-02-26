@@ -84,6 +84,32 @@ router.get('/test-kit/:accountId/:productId', authMiddleware, async (req: AuthRe
     }
 
     console.log(`\n🧪 TESTE DE KIT - Produto ID: ${productId}`);
+    
+    // Buscar dados completos do produto na API do Bling
+    const BLING_API_URL = 'https://www.bling.com.br/Api/v3';
+    let rawResponse: any = null;
+    let errorDetails: any = null;
+    
+    try {
+      const response = await axios.get(`${BLING_API_URL}/produtos/${productId}`, {
+        headers: {
+          Authorization: `Bearer ${account.accessToken}`,
+          Accept: 'application/json',
+        },
+        timeout: 15000,
+      });
+      
+      rawResponse = response.data;
+      console.log('📦 RESPOSTA COMPLETA DA API:', JSON.stringify(rawResponse, null, 2));
+    } catch (apiError: any) {
+      errorDetails = {
+        message: apiError.message,
+        status: apiError.response?.status,
+        data: apiError.response?.data,
+      };
+      console.error('❌ Erro na API do Bling:', errorDetails);
+    }
+    
     const componentes = await fetchKitComponents(productId, account.accessToken);
     
     res.json({
@@ -91,11 +117,20 @@ router.get('/test-kit/:accountId/:productId', authMiddleware, async (req: AuthRe
       isKit: componentes.length > 0,
       componentCount: componentes.length,
       components: componentes,
-      message: 'Verifique os logs do servidor para ver a estrutura completa'
+      rawResponse: rawResponse, // Retornar resposta completa da API
+      errorDetails: errorDetails,
+      productId: productId,
+      message: componentes.length > 0 
+        ? 'Kit detectado! Veja os componentes abaixo.' 
+        : 'Produto não é kit ou não tem componentes. Veja rawResponse para detalhes.'
     });
   } catch (error: any) {
     console.error('Erro no teste de kit:', error);
-    res.json({ success: false, error: error.message });
+    res.json({ 
+      success: false, 
+      error: error.message,
+      stack: error.stack 
+    });
   }
 });
 

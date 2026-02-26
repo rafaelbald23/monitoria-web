@@ -41,6 +41,10 @@ interface OrderDetailsModalProps {
 // Função auxiliar para testar kit
 const testKit = async (accountId: string, productId: string) => {
   try {
+    console.log('🧪 Iniciando teste de kit...');
+    console.log('Account ID:', accountId);
+    console.log('Product ID:', productId);
+    
     const response = await fetch(`/api/bling/test-kit/${accountId}/${productId}`, {
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('accessToken') || localStorage.getItem('token')}`,
@@ -48,20 +52,81 @@ const testKit = async (accountId: string, productId: string) => {
     });
     const result = await response.json();
     
+    console.log('📦 RESULTADO COMPLETO DO TESTE:', result);
+    console.log('═══════════════════════════════════════════════════════');
+    
     if (result.success) {
+      console.log('✅ Teste executado com sucesso!');
+      console.log('');
+      console.log('📊 RESUMO:');
+      console.log('  - É Kit:', result.isKit ? 'SIM ✅' : 'NÃO ❌');
+      console.log('  - Componentes:', result.componentCount);
+      console.log('');
+      
+      if (result.rawResponse) {
+        console.log('📦 RESPOSTA COMPLETA DA API DO BLING:');
+        console.log(JSON.stringify(result.rawResponse, null, 2));
+        console.log('');
+        
+        const productData = result.rawResponse?.data;
+        if (productData) {
+          console.log('🔍 DADOS DO PRODUTO:');
+          console.log('  - ID:', productData.id);
+          console.log('  - Nome:', productData.nome);
+          console.log('  - Código:', productData.codigo);
+          console.log('');
+          
+          if (productData.estrutura) {
+            console.log('🏗️ ESTRUTURA DO PRODUTO:');
+            console.log('  - Tipo de Estoque:', productData.estrutura.tipoEstoque);
+            console.log('  - Componentes:', productData.estrutura.componentes?.length || 0);
+            console.log('');
+            
+            if (productData.estrutura.componentes && productData.estrutura.componentes.length > 0) {
+              console.log('📦 COMPONENTES DO KIT:');
+              productData.estrutura.componentes.forEach((comp: any, index: number) => {
+                console.log(`\n  Componente ${index + 1}:`);
+                console.log('    - ID:', comp.produto?.id);
+                console.log('    - Nome:', comp.produto?.nome);
+                console.log('    - Código/SKU:', comp.produto?.codigo);
+                console.log('    - EAN (gtin):', comp.produto?.gtin || 'NÃO TEM');
+                console.log('    - EAN Embalagem:', comp.produto?.gtinEmbalagem || 'NÃO TEM');
+                console.log('    - Quantidade:', comp.quantidade);
+                console.log('    - Dados completos:', comp);
+              });
+            } else {
+              console.log('⚠️ Nenhum componente encontrado na estrutura');
+            }
+          } else {
+            console.log('⚠️ Produto não tem campo "estrutura"');
+          }
+        }
+      }
+      
+      if (result.errorDetails) {
+        console.error('❌ ERRO NA API DO BLING:');
+        console.error(result.errorDetails);
+      }
+      
+      console.log('═══════════════════════════════════════════════════════');
+      
       const msg = `🧪 TESTE DE KIT\n\n` +
         `É Kit: ${result.isKit ? 'SIM ✅' : 'NÃO ❌'}\n` +
         `Componentes: ${result.componentCount}\n\n` +
-        `⚠️ IMPORTANTE: Verifique os logs do servidor!\n` +
-        `Os logs mostrarão a estrutura completa dos componentes.`;
+        `✅ Verifique o CONSOLE (F12) para ver todos os detalhes!\n\n` +
+        `O console mostra:\n` +
+        `- Resposta completa da API do Bling\n` +
+        `- Estrutura do produto\n` +
+        `- Dados de cada componente\n` +
+        `- Se tem EAN ou não`;
       
       alert(msg);
-      console.log('📦 Resultado do teste:', result);
     } else {
+      console.error('❌ Erro no teste:', result.error);
       alert(`❌ Erro: ${result.error}`);
     }
   } catch (error) {
-    console.error('Erro ao testar kit:', error);
+    console.error('❌ Erro ao testar kit:', error);
     alert('❌ Erro ao testar kit');
   }
 };
