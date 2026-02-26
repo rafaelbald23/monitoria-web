@@ -83,19 +83,28 @@ const testKit = async (accountId: string, productId: string) => {
             console.log('');
             
             if (productData.estrutura.componentes && productData.estrutura.componentes.length > 0) {
-              console.log('📦 COMPONENTES DO KIT:');
+              console.log('📦 COMPONENTES DO KIT (da rawResponse - só IDs):');
               productData.estrutura.componentes.forEach((comp: any, index: number) => {
+                console.log(`  Componente ${index + 1}: ID ${comp.produto?.id}, Qtd: ${comp.quantidade}`);
+              });
+              console.log('');
+            }
+            
+            // Mostrar componentes completos processados pelo backend
+            if (result.components && result.components.length > 0) {
+              console.log('📦 COMPONENTES COMPLETOS (processados pelo backend):');
+              result.components.forEach((comp: any, index: number) => {
                 console.log(`\n  Componente ${index + 1}:`);
+                console.log(comp);
                 console.log('    - ID:', comp.produto?.id);
                 console.log('    - Nome:', comp.produto?.nome);
                 console.log('    - Código/SKU:', comp.produto?.codigo);
                 console.log('    - EAN (gtin):', comp.produto?.gtin || 'NÃO TEM');
                 console.log('    - EAN Embalagem:', comp.produto?.gtinEmbalagem || 'NÃO TEM');
                 console.log('    - Quantidade:', comp.quantidade);
-                console.log('    - Dados completos:', comp);
               });
             } else {
-              console.log('⚠️ Nenhum componente encontrado na estrutura');
+              console.log('⚠️ Nenhum componente completo retornado pelo backend');
             }
           } else {
             console.log('⚠️ Produto não tem campo "estrutura"');

@@ -82,11 +82,16 @@ async function fetchKitComponents(productId: string, accessToken: string): Promi
               console.log(`     - SKU: ${componenteData.codigo}`);
               console.log(`     - EAN: ${componenteData.gtin || 'NÃO TEM'}`);
               console.log(`     - Quantidade no kit: ${comp.quantidade}`);
+              console.log(`     - Dados completos:`, JSON.stringify(componenteData, null, 2));
               
               componentesCompletos.push({
                 ...comp,
                 produto: componenteData, // Substituir pelo objeto completo
               });
+            } else {
+              console.log(`  ⚠️ Resposta da API não tem campo 'data'`);
+              console.log(`  ⚠️ Resposta completa:`, JSON.stringify(compResponse.data, null, 2));
+              componentesCompletos.push(comp);
             }
           } catch (compError: any) {
             console.log(`  ⚠️ Erro ao buscar componente ${componenteId}: ${compError.message}`);
@@ -150,14 +155,15 @@ router.get('/test-kit/:accountId/:productId', authMiddleware, async (req: AuthRe
       console.error('❌ Erro na API do Bling:', errorDetails);
     }
     
+    // Buscar componentes completos usando a função fetchKitComponents
     const componentes = await fetchKitComponents(productId, account.accessToken);
     
     res.json({
       success: true,
       isKit: componentes.length > 0,
       componentCount: componentes.length,
-      components: componentes,
-      rawResponse: rawResponse, // Retornar resposta completa da API
+      components: componentes, // ← Retornar os componentes PROCESSADOS, não os do rawResponse
+      rawResponse: rawResponse,
       errorDetails: errorDetails,
       productId: productId,
       message: componentes.length > 0 
