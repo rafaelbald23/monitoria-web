@@ -5,6 +5,7 @@ import { XIcon, ShoppingCartIcon, UserIcon, CalendarIcon, DollarIcon, PackageIco
 interface OrderItem {
   codigo?: string;
   produto?: {
+    id?: string;
     codigo?: string;
     nome?: string;
     ean?: string;
@@ -36,6 +37,34 @@ interface OrderDetailsModalProps {
   order: OrderDetails | null;
   onProcessOrder?: (orderId: string) => void;
 }
+
+// Função auxiliar para testar kit
+const testKit = async (accountId: string, productId: string) => {
+  try {
+    const response = await fetch(`/api/bling/test-kit/${accountId}/${productId}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('accessToken') || localStorage.getItem('token')}`,
+      },
+    });
+    const result = await response.json();
+    
+    if (result.success) {
+      const msg = `🧪 TESTE DE KIT\n\n` +
+        `É Kit: ${result.isKit ? 'SIM ✅' : 'NÃO ❌'}\n` +
+        `Componentes: ${result.componentCount}\n\n` +
+        `⚠️ IMPORTANTE: Verifique os logs do servidor!\n` +
+        `Os logs mostrarão a estrutura completa dos componentes.`;
+      
+      alert(msg);
+      console.log('📦 Resultado do teste:', result);
+    } else {
+      alert(`❌ Erro: ${result.error}`);
+    }
+  } catch (error) {
+    console.error('Erro ao testar kit:', error);
+    alert('❌ Erro ao testar kit');
+  }
+};
 
 export default function OrderDetailsModal({ isOpen, onClose, order, onProcessOrder }: OrderDetailsModalProps) {
   const { isDarkMode } = useTheme();
@@ -218,6 +247,9 @@ export default function OrderDetailsModal({ isOpen, onClose, order, onProcessOrd
                         <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                           Estoque
                         </th>
+                        <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          Ações
+                        </th>
                       </tr>
                     </thead>
                     <tbody className={`divide-y ${isDarkMode ? 'divide-white/10' : 'divide-gray-200'}`}>
@@ -225,6 +257,7 @@ export default function OrderDetailsModal({ isOpen, onClose, order, onProcessOrd
                         const sku = item.codigo || item.produto?.codigo;
                         const nome = item.nome || item.produto?.nome;
                         const ean = item.ean || item.produto?.ean;
+                        const blingProductId = item.produto?.id; // ID do produto no Bling
                         const match = (sku && productMatches[sku]) || (ean && productMatches[ean]) || (nome && productMatches[nome]);
                         
                         // Usar o nome do match (produto no estoque) como nome principal
@@ -275,6 +308,19 @@ export default function OrderDetailsModal({ isOpen, onClose, order, onProcessOrd
                                 <span className={`px-2 py-1 rounded text-xs ${isDarkMode ? 'bg-gray-500/20 text-gray-400' : 'bg-gray-100 text-gray-600'}`}>
                                   N/A
                                 </span>
+                              )}
+                            </td>
+                            <td className={`px-4 py-3 text-sm`}>
+                              {blingProductId && order.accountId ? (
+                                <button
+                                  onClick={() => testKit(order.accountId!, blingProductId)}
+                                  className={`px-2 py-1 rounded text-xs font-medium transition-colors ${isDarkMode ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}
+                                  title="Testar se é kit e ver componentes"
+                                >
+                                  🧪 Kit?
+                                </button>
+                              ) : (
+                                <span className="text-gray-500 text-xs">-</span>
                               )}
                             </td>
                           </tr>
