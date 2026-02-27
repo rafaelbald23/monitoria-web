@@ -2399,17 +2399,18 @@ router.post('/orders/:orderId/reprocess', authMiddleware, async (req: AuthReques
     console.log(`🔄 REPROCESSANDO pedido ${orderId}...`);
 
     const order = await prisma.blingOrder.findFirst({
-      where: { id: orderId, userId },
-      include: {
-        account: true
-      }
+      where: { id: orderId, userId }
     });
 
     if (!order) {
       return res.json({ success: false, error: 'Pedido não encontrado' });
     }
 
-    if (!order.account || !order.account.accessToken) {
+    const account = await prisma.blingAccount.findUnique({
+      where: { id: order.accountId }
+    });
+
+    if (!account || !account.accessToken) {
       return res.json({ success: false, error: 'Conta Bling não encontrada ou sem token' });
     }
 
@@ -2431,7 +2432,7 @@ router.post('/orders/:orderId/reprocess', authMiddleware, async (req: AuthReques
         let kitComponents: any[] = [];
         
         if (blingProductId) {
-          kitComponents = await fetchKitComponents(String(blingProductId), order.account.accessToken);
+          kitComponents = await fetchKitComponents(String(blingProductId), account.accessToken);
           isKit = kitComponents.length > 0;
           
           if (isKit) {
