@@ -158,11 +158,52 @@ router.get('/test-kit/:accountId/:productId', authMiddleware, async (req: AuthRe
     // Buscar componentes completos usando a função fetchKitComponents
     const componentes = await fetchKitComponents(productId, account.accessToken);
     
+    // 🔍 VERIFICAR SE OS COMPONENTES EXISTEM NO ESTOQUE
+    const componentesComEstoque = [];
+    for (const comp of componentes) {
+      const compEan = comp.produto?.gtin || comp.produto?.gtinEmbalagem;
+      const compSku = comp.produto?.codigo;
+      const compNome = comp.produto?.nome;
+      
+      // Buscar no estoque
+      let produtoNoEstoque = null;
+      
+      if (compEan) {
+        produtoNoEstoque = await prisma.product.findFirst({
+          where: { ean: compEan }
+        });
+      }
+      
+      if (!produtoNoEstoque && compSku) {
+        produtoNoEstoque = await prisma.product.findFirst({
+          where: {
+            OR: [
+              { sku: compSku },
+              { internalCode: compSku }
+            ]
+          }
+        });
+      }
+      
+      componentesComEstoque.push({
+        componente: comp,
+        encontradoNoEstoque: !!produtoNoEstoque,
+        produtoEstoque: produtoNoEstoque ? {
+          id: produtoNoEstoque.id,
+          name: produtoNoEstoque.name,
+          sku: produtoNoEstoque.sku,
+          ean: produtoNoEstoque.ean,
+        } : null,
+        buscadoPor: produtoNoEstoque ? (compEan ? 'EAN' : 'SKU') : 'NÃO ENCONTRADO'
+      });
+    }
+    
     res.json({
       success: true,
       isKit: componentes.length > 0,
       componentCount: componentes.length,
-      components: componentes, // ← Retornar os componentes PROCESSADOS, não os do rawResponse
+      components: componentes,
+      componentesComEstoque: componentesComEstoque,
       rawResponse: rawResponse,
       errorDetails: errorDetails,
       productId: productId,

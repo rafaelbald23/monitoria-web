@@ -106,6 +106,27 @@ const testKit = async (accountId: string, productId: string) => {
             } else {
               console.log('⚠️ Nenhum componente completo retornado pelo backend');
             }
+            
+            // 🔍 VERIFICAÇÃO DE ESTOQUE
+            if (result.componentesComEstoque && result.componentesComEstoque.length > 0) {
+              console.log('');
+              console.log('🔍 VERIFICAÇÃO DE ESTOQUE:');
+              result.componentesComEstoque.forEach((item: any, index: number) => {
+                console.log(`\n  Componente ${index + 1}:`);
+                console.log('    - EAN:', item.componente.produto?.gtin || 'N/A');
+                console.log('    - SKU:', item.componente.produto?.codigo || 'N/A');
+                console.log('    - Nome:', item.componente.produto?.nome || 'N/A');
+                console.log('    - Encontrado no estoque:', item.encontradoNoEstoque ? '✅ SIM' : '❌ NÃO');
+                console.log('    - Buscado por:', item.buscadoPor);
+                if (item.produtoEstoque) {
+                  console.log('    - Produto no estoque:', item.produtoEstoque.name);
+                  console.log('    - EAN no estoque:', item.produtoEstoque.ean || 'N/A');
+                  console.log('    - SKU no estoque:', item.produtoEstoque.sku);
+                } else {
+                  console.log('    ⚠️ PRODUTO NÃO CADASTRADO NO ESTOQUE!');
+                }
+              });
+            }
           } else {
             console.log('⚠️ Produto não tem campo "estrutura"');
           }
