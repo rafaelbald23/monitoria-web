@@ -2431,7 +2431,7 @@ router.post('/orders/:orderId/reprocess', authMiddleware, async (req: AuthReques
         let isKit = false;
         let kitComponents: any[] = [];
         
-        if (blingProductId) {
+        if (blingProductId && account.accessToken) {
           kitComponents = await fetchKitComponents(String(blingProductId), account.accessToken);
           isKit = kitComponents.length > 0;
           
