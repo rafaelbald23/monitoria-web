@@ -159,14 +159,14 @@ router.get('/test-kit/:accountId/:productId', authMiddleware, async (req: AuthRe
     const componentes = await fetchKitComponents(productId, account.accessToken);
     
     // 🔍 VERIFICAR SE OS COMPONENTES EXISTEM NO ESTOQUE
-    const componentesComEstoque = [];
+    const componentesComEstoque: any[] = [];
     for (const comp of componentes) {
       const compEan = comp.produto?.gtin || comp.produto?.gtinEmbalagem;
       const compSku = comp.produto?.codigo;
       const compNome = comp.produto?.nome;
       
       // Buscar no estoque
-      let produtoNoEstoque = null;
+      let produtoNoEstoque: any = null;
       
       if (compEan) {
         produtoNoEstoque = await prisma.product.findFirst({
