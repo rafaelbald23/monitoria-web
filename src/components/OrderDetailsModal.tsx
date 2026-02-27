@@ -36,6 +36,7 @@ interface OrderDetailsModalProps {
   onClose: () => void;
   order: OrderDetails | null;
   onProcessOrder?: (orderId: string) => void;
+  onReprocessOrder?: (orderId: string) => void; // Nova prop
 }
 
 // Função auxiliar para testar kit
@@ -161,7 +162,7 @@ const testKit = async (accountId: string, productId: string) => {
   }
 };
 
-export default function OrderDetailsModal({ isOpen, onClose, order, onProcessOrder }: OrderDetailsModalProps) {
+export default function OrderDetailsModal({ isOpen, onClose, order, onProcessOrder, onReprocessOrder }: OrderDetailsModalProps) {
   const { isDarkMode } = useTheme();
   const [productMatches, setProductMatches] = useState<Record<string, any>>({});
 
@@ -429,16 +430,29 @@ export default function OrderDetailsModal({ isOpen, onClose, order, onProcessOrd
             </div>
 
             {/* Ações */}
-            {!order.isProcessed && (order.status === 'Verificado' || order.status === 'Checado') && onProcessOrder && (
-              <div className="flex justify-end">
+            <div className="flex justify-end gap-3">
+              {!order.isProcessed && (order.status === 'Verificado' || order.status === 'Checado' || order.status === 'Atendido' || order.status === 'Despachado') && onProcessOrder && (
                 <button
                   onClick={() => onProcessOrder(order.id)}
                   className="px-6 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:opacity-90 transition-opacity font-medium"
                 >
                   Processar Baixa no Estoque
                 </button>
-              </div>
-            )}
+              )}
+              
+              {order.isProcessed && onReprocessOrder && (
+                <button
+                  onClick={() => {
+                    if (confirm('⚠️ ATENÇÃO!\n\nEste pedido já foi processado. Reprocessar vai dar baixa novamente nos produtos.\n\nTem certeza que deseja reprocessar?')) {
+                      onReprocessOrder(order.id);
+                    }
+                  }}
+                  className="px-6 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl hover:opacity-90 transition-opacity font-medium flex items-center gap-2"
+                >
+                  🔄 Reprocessar com Lógica de Kits
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>

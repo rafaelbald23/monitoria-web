@@ -2390,6 +2390,170 @@ router.post('/orders/:orderId/process', authMiddleware, async (req: AuthRequest,
   }
 });
 
+// 🔄 REPROCESSAR PEDIDO COM LÓGICA DE KITS
+router.post('/orders/:orderId/reprocess', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { orderId } = req.params;
+    const userId = req.user!.userId;
+
+    console.log(`🔄 REPROCESSANDO pedido ${orderId}...`);
+
+    const order = await prisma.blingOrder.findFirst({
+      where: { id: orderId, userId },
+      include: {
+        account: true
+      }
+    });
+
+    if (!order) {
+      return res.json({ success: false, error: 'Pedido não encontrado' });
+    }
+
+    if (!order.account || !order.account.accessToken) {
+      return res.json({ success: false, error: 'Conta Bling não encontrada ou sem token' });
+    }
+
+    const items = JSON.parse(order.items);
+    let produtosProcessados = 0;
+
+    await prisma.$transaction(async (tx) => {
+      for (const item of items) {
+        const sku = item.codigo || item.produto?.codigo;
+        const nome = item.nome || item.produto?.nome;
+        const ean = item.ean || item.produto?.ean;
+        const quantidade = item.quantidade || 1;
+        const blingProductId = item.produto?.id;
+        
+        console.log(`📦 Reprocessando item: SKU="${sku}", Nome="${nome}", EAN="${ean}", Qtd=${quantidade}`);
+
+        // 🎁 VERIFICAR SE É KIT
+        let isKit = false;
+        let kitComponents: any[] = [];
+        
+        if (blingProductId) {
+          kitComponents = await fetchKitComponents(String(blingProductId), order.account.accessToken);
+          isKit = kitComponents.length > 0;
+          
+          if (isKit) {
+            console.log(`🎁 KIT DETECTADO: "${nome}" com ${kitComponents.length} componentes`);
+          }
+        }
+
+        // Se for kit, processar componentes individualmente
+        if (isKit && kitComponents.length > 0) {
+          console.log(`🎁 Reprocessando componentes do kit "${nome}"...`);
+          
+          for (const componente of kitComponents) {
+            const compSku = componente.produto?.codigo;
+            const compNome = componente.produto?.nome;
+            const compEan = componente.produto?.gtin || componente.produto?.gtinEmbalagem;
+            const compQtd = (componente.quantidade || 1) * quantidade;
+            
+            console.log(`  📦 Componente: SKU="${compSku}", EAN="${compEan}", Nome="${compNome}", Qtd=${compQtd}`);
+            
+            let compProduct: any = null;
+            
+            // 1. PRIORIDADE: Buscar por EAN
+            if (compEan) {
+              compProduct = await tx.product.findFirst({
+                where: { ean: compEan }
+              });
+              if (compProduct) {
+                console.log(`  ✅ Componente encontrado por EAN: ${compProduct.name}`);
+              }
+            }
+            
+            // 2. Se não encontrou por EAN, buscar por SKU
+            if (!compProduct && compSku) {
+              compProduct = await tx.product.findFirst({
+                where: {
+                  OR: [
+                    { sku: compSku },
+                    { internalCode: compSku }
+                  ]
+                }
+              });
+              if (compProduct) {
+                console.log(`  ✅ Componente encontrado por SKU: ${compProduct.name}`);
+              }
+            }
+            
+            if (compProduct) {
+              console.log(`  📦 DANDO BAIXA: ${compQtd}x ${compProduct.name}`);
+              
+              await tx.movement.create({
+                data: {
+                  type: 'EXIT',
+                  productId: compProduct.id,
+                  quantity: compQtd,
+                  reason: `Reprocessamento (Kit: ${nome}) - Pedido #${order.orderNumber}`,
+                  userId,
+                  syncStatus: 'synced',
+                },
+              });
+              
+              produtosProcessados++;
+            } else {
+              console.log(`  ⚠️ Componente não encontrado no estoque`);
+            }
+          }
+          
+          console.log(`✅ Kit "${nome}" reprocessado`);
+          
+        } else {
+          // NÃO É KIT - Processar normalmente
+          let product: any = null;
+
+          if (sku) {
+            product = await tx.product.findFirst({
+              where: {
+                OR: [
+                  { sku: sku },
+                  { internalCode: sku }
+                ]
+              }
+            });
+          }
+
+          if (!product && ean) {
+            product = await tx.product.findFirst({
+              where: { ean: ean }
+            });
+          }
+
+          if (product) {
+            console.log(`📦 DANDO BAIXA: ${quantidade}x ${product.name}`);
+            
+            await tx.movement.create({
+              data: {
+                type: 'EXIT',
+                productId: product.id,
+                quantity: quantidade,
+                reason: `Reprocessamento - Pedido #${order.orderNumber}`,
+                userId,
+                syncStatus: 'synced',
+              },
+            });
+            
+            produtosProcessados++;
+          }
+        }
+      }
+    });
+
+    console.log(`✅ REPROCESSAMENTO CONCLUÍDO: ${produtosProcessados} produtos processados`);
+
+    res.json({ 
+      success: true, 
+      message: `Pedido reprocessado com sucesso! ${produtosProcessados} produtos tiveram baixa no estoque.`,
+      produtosProcessados
+    });
+  } catch (error: any) {
+    console.error('❌ Erro ao reprocessar pedido:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // 🔧 ENDPOINT ÚNICO PARA CORRIGIR STATUS ANTIGOS
 router.post('/fix-old-status', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {

@@ -162,6 +162,35 @@ export default function Sales() {
     }
   };
 
+  const handleReprocessOrder = async (orderId: string) => {
+    try {
+      const response = await fetch(`/api/bling/orders/${orderId}/reprocess`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('accessToken') || localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        showMessage('success', result.message || 'Pedido reprocessado com sucesso!');
+        setIsModalOpen(false);
+        await loadBlingOrders();
+      } else {
+        showMessage('error', `Erro ao reprocessar: ${result.error}`);
+      }
+    } catch (error: any) {
+      console.error('Erro ao reprocessar pedido:', error);
+      showMessage('error', `Erro ao reprocessar: ${error.message}`);
+    }
+  };
+
   const handleCorrectStatus = async (orderNumber: string) => {
     if (!accounts.length) {
       showMessage('error', 'Nenhuma conta conectada');
@@ -710,6 +739,7 @@ Deve processar estoque: ${inv.comparison.shouldProcessStock ? 'SIM' : 'NÃO'}`;
         onClose={() => setIsModalOpen(false)}
         order={selectedOrder}
         onProcessOrder={handleProcessOrder}
+        onReprocessOrder={handleReprocessOrder}
       />
     </Layout>
   );
