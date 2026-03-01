@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import axios from 'axios';
 import prisma from '../lib/prisma.js';
-import { authMiddleware, AuthRequest } from '../middleware/auth.js';
+import { authMiddleware, AuthRequest, getOwnerUserId } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -2293,6 +2293,9 @@ router.get('/orders/all/:accountId', authMiddleware, async (req: AuthRequest, re
   try {
     const { accountId } = req.params;
     const userId = req.user!.userId;
+    
+    // Se for funcionário, buscar pedidos do dono
+    const ownerUserId = await getOwnerUserId(userId);
 
     // Buscar informações da conta
     const account = await prisma.blingAccount.findUnique({
@@ -2307,7 +2310,7 @@ router.get('/orders/all/:accountId', authMiddleware, async (req: AuthRequest, re
     const orders = await prisma.blingOrder.findMany({
       where: {
         accountId,
-        userId,
+        userId: ownerUserId, // Usar ownerUserId para que funcionários vejam pedidos do dono
         createdAt: { gte: threeMonthsAgo },
       },
       orderBy: [

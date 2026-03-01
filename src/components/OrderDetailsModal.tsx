@@ -343,9 +343,6 @@ export default function OrderDetailsModal({ isOpen, onClose, order, onProcessOrd
                         <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                           Estoque
                         </th>
-                        <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                          Ações
-                        </th>
                       </tr>
                     </thead>
                     <tbody className={`divide-y ${isDarkMode ? 'divide-white/10' : 'divide-gray-200'}`}>
@@ -406,19 +403,6 @@ export default function OrderDetailsModal({ isOpen, onClose, order, onProcessOrd
                                 </span>
                               )}
                             </td>
-                            <td className={`px-4 py-3 text-sm`}>
-                              {blingProductId && order.accountId ? (
-                                <button
-                                  onClick={() => testKit(order.accountId!, blingProductId)}
-                                  className={`px-2 py-1 rounded text-xs font-medium transition-colors ${isDarkMode ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}
-                                  title="Testar se é kit e ver componentes"
-                                >
-                                  🧪 Kit?
-                                </button>
-                              ) : (
-                                <span className="text-gray-500 text-xs">-</span>
-                              )}
-                            </td>
                           </tr>
                         );
                       })}
@@ -426,31 +410,6 @@ export default function OrderDetailsModal({ isOpen, onClose, order, onProcessOrd
                   </table>
                 </div>
               </div>
-              )}
-            </div>
-
-            {/* Ações */}
-            <div className="flex justify-end gap-3">
-              {!order.isProcessed && (order.status === 'Verificado' || order.status === 'Checado' || order.status === 'Atendido' || order.status === 'Despachado') && onProcessOrder && (
-                <button
-                  onClick={() => onProcessOrder(order.id)}
-                  className="px-6 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:opacity-90 transition-opacity font-medium"
-                >
-                  Processar Baixa no Estoque
-                </button>
-              )}
-              
-              {order.isProcessed && onReprocessOrder && (
-                <button
-                  onClick={() => {
-                    if (confirm('⚠️ ATENÇÃO!\n\nEste pedido já foi processado. Reprocessar vai dar baixa novamente nos produtos.\n\nTem certeza que deseja reprocessar?')) {
-                      onReprocessOrder(order.id);
-                    }
-                  }}
-                  className="px-6 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl hover:opacity-90 transition-opacity font-medium flex items-center gap-2"
-                >
-                  🔄 Reprocessar com Lógica de Kits
-                </button>
               )}
             </div>
           </div>
