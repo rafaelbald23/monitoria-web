@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Products from './pages/Products';
@@ -31,6 +32,9 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Landing Page - Rota pública */}
+        <Route path="/" element={<LandingPage />} />
+        
         <Route
           path="/login"
           element={isAuthenticated ? <DefaultRedirect /> : <Login />}
@@ -115,7 +119,6 @@ function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="/" element={<DefaultRedirect />} />
       </Routes>
     </BrowserRouter>
   );
